@@ -6,10 +6,10 @@ function App() {
   return (
     <>
       <BrowserRouter>
-            <Routes>
-                <Route path="/menu/:token" element={<MenuPage />} />
-            </Routes>
-        </BrowserRouter>
+        <Routes>
+          <Route path="/menu/:token" element={<MenuPage />} />
+        </Routes>
+      </BrowserRouter>
     </>
   )
 }

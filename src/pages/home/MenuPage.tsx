@@ -4,9 +4,11 @@ import type { MenuItem, MenuCategory } from "../../interfaces/menu.types"
 import type { ApiResponse } from "../../interfaces/api.types"
 import type { Table } from "../../interfaces/table.types"
 import { useNavigate, useParams } from "react-router-dom"
-import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders } from "react-icons/fi"
+import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders, FiMinus } from "react-icons/fi"
 import { motion } from "framer-motion"
 import Button from "../../ui/Button"
+import type { OrderItems } from "../../interfaces/orderItems.types"
+import type { Order } from "../../interfaces/order.types"
 
 const CATEGORY_LABELS: Record<MenuCategory, string> = {
     starter: "Entrées",
@@ -21,8 +23,9 @@ function formatPrice(price: string): string {
     return `${Math.round(Number(price)).toLocaleString("fr-FR")} FCFA`
 }
 
+
 function MenuPage() {
-    const { token } = useParams()
+    const { token } = useParams<{ token: string }>()
     const [menuItems, setMenuItems] = useState<MenuItem[] | []>([])
     const [table, setTable] = useState<Table | null>(null)
     const [loading, setLoading] = useState<boolean>(true)
@@ -30,6 +33,10 @@ function MenuPage() {
     const [isLoaded, setIsLoaded] = useState<boolean>(false)
     const [showHeader, setShowHeader] = useState<boolean>(true)
     const [showFilters, setShowFilters] = useState<boolean>(false)
+    const [showSuggestion, setShowSuggestion] = useState<boolean>(false)
+    const [quantity, setQuantity] = useState<number>(1)
+    const [selectedMenu, setSelectedMenu] = useState<MenuItem | null>(null)
+    const [note, setNote] = useState<string | "">("")
 
     const [searchTerm, setSearchTerm] = useState("")
     const [maxPrice, setMaxPrice] = useState<number>(0)
@@ -55,6 +62,19 @@ function MenuPage() {
         window.addEventListener("scroll", handleScroll, { passive: true })
         return () => window.removeEventListener("scroll", handleScroll)
     }, [])
+
+    async function fetcheSelectedMenu(id: number) {
+        setQuantity(1)
+        try {
+            const res = await api.get<ApiResponse<MenuItem>>(`/menu/details/${id}`)
+            const menu: MenuItem = res.data.data
+            setSelectedMenu(menu)
+
+        } catch (error) {
+            console.log(error)
+        }
+
+    }
 
     useEffect(() => {
         async function fetchMenu() {
@@ -85,6 +105,36 @@ function MenuPage() {
         }
         fetchTables()
     }, [token])
+
+    function handleAddOrder() {
+        try {
+            if (!token) return;
+            if (!selectedMenu?.id) return; // sécurité
+
+            // Création d'un objet de base avec quantité = 1 pour chaque unité
+            const baseOrderItem: OrderItems = {
+                menuId: Number(selectedMenu.id),
+                note: note,
+            };
+
+            // Génération de N objets identiques (N = quantity)
+            const orders = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
+
+            // Construction de l'objet Order
+            const order: Order = {
+                tableToken: token,
+                order: orders,
+            };
+
+            // Enregistrement dans localStorage (conversion en JSON)
+            localStorage.setItem("Order", JSON.stringify(order));
+
+            console.log("Commande enregistrée :", order);
+            setShowSuggestion(false)
+        } catch (error) {
+            console.log(error);
+        }
+    }
 
     const availableItems = useMemo(() => {
         return menuItems.filter(item => item.isAvailable)
@@ -287,8 +337,8 @@ function MenuPage() {
                                             type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                console.log("Ajouter", item.id);
-                                                alert(`Menus ajouté: ${item.name}`)
+                                                fetcheSelectedMenu(item.id)
+                                                setShowSuggestion(true)
                                             }}
                                             className="shrink-0 flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-orange-500 text-white shadow-lg shadow-black/20 hover:bg-orange-700 active:scale-95 transition-all duration-300"
                                             aria-label={`Ajouter ${item.name}`}
@@ -313,6 +363,93 @@ function MenuPage() {
                     </div>
                 )}
             </main>
+
+            {showSuggestion && (
+                <div className="fixed inset-0 p-4 w-full h-screen bg-black/50 flex z-100 items-center justify-center">
+                    <div className="max-w-md w-full mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+                        {/* En-tête */}
+                        <div className="text-center sm:text-left">
+                            <h2 className="text-xl font-bold text-gray-900">
+                                Personnalisez votre commande
+                            </h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                                Ajoutez une note et choisissez la quantité pour{" "}
+                                <span className="font-semibold"> {selectedMenu?.name} </span>.
+                            </p>
+                        </div>
+
+                        {/* Quantité + Prix total */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between bg-gray-50 rounded-xl p-2 border border-gray-100">
+                                <span className="text-sm font-medium text-gray-700 pl-3">Quantité</span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 active:scale-95 transition"
+                                        aria-label="Diminuer"
+                                    >
+                                        <FiMinus className="w-4 h-4" />
+                                    </Button>
+                                    <span className="w-10 text-center text-lg font-bold">{quantity}</span>
+                                    <Button
+                                        onClick={() => setQuantity(quantity + 1)}
+                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600 active:scale-95 transition"
+                                        aria-label="Augmenter"
+                                    >
+                                        <FiPlus className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Prix total */}
+                            <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-2 border border-orange-100">
+                                <span className="text-sm font-medium text-orange-700">Total</span>
+                                <span className="text-lg font-bold text-orange-600">
+                                    {Number(selectedMenu?.price) * quantity}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Note */}
+                        <div>
+                            <label
+                                htmlFor="note"
+                                className="block text-sm font-medium text-gray-700 mb-1"
+                            >
+                                Note (Optionelle)
+                            </label>
+                            <textarea
+                                id="note"
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                placeholder="Ex: sans piment, cuisson à point, sans oignons..."
+                                className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
+                                rows={3}
+                            />
+                        </div>
+
+                        {/* Boutons */}
+                        <div className="flex flex-col sm:flex-row gap-3">
+
+                            <Button
+                                type="button"
+                                onClick={() => setShowSuggestion(false)}
+                                className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
+                            >
+                                Annuler
+                            </Button>
+
+                            <Button
+                                type="submit"
+                                onClick={handleAddOrder}
+                                className="py-3 px-4 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 active:scale-[0.98] transition flex-1"
+                            >
+                                Ajouter à ma commande
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

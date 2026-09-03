@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import api from "../api/axios"
 import type { MenuItem, MenuCategory } from "../interfaces/menu.types"
 import type { ApiResponse } from "../interfaces/api.types"
 import type { Table } from "../interfaces/table.types"
 import { useParams } from "react-router-dom"
+import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders } from "react-icons/fi"
+import { motion } from "framer-motion"
 
 const CATEGORY_LABELS: Record<MenuCategory, string> = {
     starter: "Entrées",
@@ -25,12 +27,39 @@ function MenuPage() {
     const [loading, setLoading] = useState(true)
     const [activeCategory, setActiveCategory] = useState<string>("all")
     const [isLoaded, setIsLoaded] = useState(false)
+    const [showHeader, setShowHeader] = useState(true)
+    const [showFilters, setShowFilters] = useState(false)
+
+    const [searchTerm, setSearchTerm] = useState("")
+    const [maxPrice, setMaxPrice] = useState<number>(0)
+
+    useEffect(() => {
+        let lastScrollY = window.scrollY
+
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY
+            if (currentScrollY > lastScrollY + 10) {
+                setShowHeader(false)
+                setShowFilters(false)
+            } else if (currentScrollY < lastScrollY - 10) {
+                setShowHeader(true)
+                setShowFilters(false)
+            }
+            lastScrollY = currentScrollY
+        }
+
+        window.addEventListener("scroll", handleScroll, { passive: true })
+        return () => window.removeEventListener("scroll", handleScroll)
+    }, [])
 
     useEffect(() => {
         async function fetchMenu() {
             try {
                 const res = await api.get<ApiResponse<MenuItem[]>>("/menu/all")
-                setMenuItems(res.data.data)
+                const items = res.data.data
+                setMenuItems(items)
+                const max = Math.max(...items.map(item => Number(item.price)), 0)
+                setMaxPrice(max)
             } catch (error) {
                 console.log(error)
             } finally {
@@ -38,7 +67,6 @@ function MenuPage() {
                 setTimeout(() => setIsLoaded(true), 100)
             }
         }
-
         fetchMenu()
     }, [])
 
@@ -54,12 +82,37 @@ function MenuPage() {
         fetchTables()
     }, [token])
 
+    const availableItems = useMemo(() => {
+        return menuItems.filter(item => item.isAvailable)
+    }, [menuItems])
+
+    const filteredItems = useMemo(() => {
+        return availableItems.filter(item => {
+            const matchesSearch =
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
+            const matchesPrice = Number(item.price) <= maxPrice
+            return matchesSearch && matchesPrice
+        })
+    }, [availableItems, searchTerm, maxPrice])
+
+    const groups = useMemo(() => {
+        return CATEGORY_ORDER.map(category => ({
+            category,
+            items: filteredItems.filter(item => item.category === category),
+        })).filter(group => group.items.length > 0)
+    }, [filteredItems])
+
+    const filteredGroups = activeCategory === "all"
+        ? groups
+        : groups.filter(g => g.category === activeCategory)
+
     if (loading) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+            <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-orange-50 via-amber-50 to-yellow-100">
                 <div className="flex flex-col items-center space-y-4">
-                    <div className="w-12 h-12 rounded-full border-2 border-amber-500/20 border-t-amber-500 animate-spin" />
-                    <p className="text-sm font-medium tracking-wide text-zinc-400 animate-pulse">
+                    <div className="w-12 h-12 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin" />
+                    <p className="text-sm font-medium tracking-wide text-gray-600 animate-pulse">
                         Préparation de votre menu...
                     </p>
                 </div>
@@ -67,129 +120,176 @@ function MenuPage() {
         )
     }
 
-    const groups = CATEGORY_ORDER.map((category) => ({
-        category,
-        items: menuItems.filter((item) => item.category === category && item.isAvailable),
-    })).filter((group) => group.items.length > 0)
-
-    const filteredGroups = activeCategory === "all" 
-        ? groups 
-        : groups.filter(g => g.category === activeCategory)
-
     return (
-        <div className="min-h-screen bg-zinc-955 bg-zinc-950 text-zinc-100 font-sans selection:bg-amber-500 selection:text-white pb-20">
-            {/* Header Ambiant & Élégant */}
-            <header className="relative overflow-hidden border-b border-white/10 bg-zinc-900/40 backdrop-blur-xl px-6 pt-12 pb-8 text-center">
-                <div className="absolute inset-0 bg-cover bg-center opacity-20 pointer-events-none" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1920&q=80')` }} />
-                <div className="absolute inset-0 bg-linear-to-b from-zinc-950/60 via-zinc-950/80 to-zinc-950" />
-
-                <div className="relative z-10 max-w-2xl mx-auto">
-                    <div className="inline-flex items-center space-x-2 px-3 py-1 mb-3 text-xs font-semibold tracking-widest text-amber-400 uppercase bg-amber-500/10 border border-amber-500/20 rounded-full">
-                        <span>Table n° {table?.number || '...'}</span>
+        <div className="min-h-screen text-gray-800 font-sans selection:bg-orange-200 selection:text-gray-900 pb-20">
+            <header
+                className={`sticky top-0 z-40 bg-white/70 backdrop-blur-lg transition-transform duration-500 ease-in-out ${showHeader ? "translate-y-0" : "-translate-y-full"
+                    }`}
+            >
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                                Épices & Nectar
+                            </h1>
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-orange-700">
+                            <FiMapPin className="w-3.5 h-3.5" />
+                            Table n° {table?.number || '...'}
+                        </span>
                     </div>
-                    <h1 className="font-serif text-3xl sm:text-5xl font-bold tracking-tight text-white mb-2">
-                        Épices & Nectar
-                    </h1>
-                    <p className="text-sm text-zinc-400 max-w-md mx-auto">
-                        Explorez notre carte raffinée et commandez directement depuis votre table en toute sérénité.
-                    </p>
-                </div>
 
-                {/* Filtres de Catégories Mobile-First (Sticky Horizontal Scroll) */}
-                <div className="relative z-10 flex items-center justify-start sm:justify-center gap-2 overflow-x-auto no-scrollbar max-w-xl mx-auto mt-8 px-2 py-1">
-                    <button
-                        onClick={() => setActiveCategory("all")}
-                        className={`px-4 py-2 rounded-xl text-xs font-medium tracking-wide transition-all duration-300 shrink-0 ${
-                            activeCategory === "all"
-                                ? "bg-amber-500 text-white shadow-lg shadow-amber-500/25"
-                                : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white border border-white/5"
-                        }`}
-                    >
-                        Tout voir
-                    </button>
-                    {CATEGORY_ORDER.map((cat) => {
-                        const hasItems = groups.some(g => g.category === cat)
-                        if (!hasItems) return null
-                        return (
-                            <button
-                                key={cat}
-                                onClick={() => setActiveCategory(cat)}
-                                className={`px-4 py-2 rounded-xl text-xs font-medium tracking-wide transition-all duration-300 shrink-0 ${
-                                    activeCategory === cat
-                                        ? "bg-amber-500 text-white shadow-lg shadow-amber-500/25"
-                                        : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white border border-white/5"
+                    <div className="mt-3 flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <input
+                                type="text"
+                                placeholder="Rechercher un plat, une boisson..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full px-4 py-3.5 pl-10 rounded-full bg-white/80 border border-orange-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 transition-all duration-300"
+                            />
+                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        </div>
+                        <button
+                            onClick={() => setShowFilters(prev => !prev)}
+                            className={`shrink-0 flex items-center justify-center gap-1.5 px-4 py-4 rounded-full text-sm font-medium transition-all duration-500 ease-in-out ${showFilters
+                                ? "bg-orange-500 text-white shadow-lg shadow-orange-200 scale-105"
+                                : "bg-white/80 border border-orange-200 text-gray-700 hover:bg-white hover:scale-105"
                                 }`}
-                            >
-                                {CATEGORY_LABELS[cat]}
-                            </button>
-                        )
-                    })}
+                        >
+                            <FiSliders className="w-4 h-4" />
+                            <span className="hidden sm:inline">Filtres</span>
+                        </button>
+                    </div>
+
+                    {/* Filtres animés avec Framer Motion */}
+                    <motion.div
+                        initial={false}
+                        animate={{ height: showFilters ? "auto" : 0, opacity: showFilters ? 1 : 0 }}
+                        transition={{ duration: 0.5, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                    >
+                        <div className="space-y-4 mt-4">
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => setActiveCategory("all")}
+                                    className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${activeCategory === "all"
+                                        ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+                                        : "bg-white/60 text-gray-600 hover:bg-white/80 border border-orange-200"
+                                        }`}
+                                >
+                                    Tout voir
+                                </button>
+                                {CATEGORY_ORDER.map(cat => {
+                                    const hasItems = groups.some(g => g.category === cat)
+                                    if (!hasItems) return null
+                                    return (
+                                        <button
+                                            key={cat}
+                                            onClick={() => setActiveCategory(cat)}
+                                            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${activeCategory === cat
+                                                ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+                                                : "bg-white/60 text-gray-600 hover:bg-white/80 border border-orange-200"
+                                                }`}
+                                        >
+                                            {CATEGORY_LABELS[cat]}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            <div className="flex items-center gap-3 bg-white/50 rounded-2xl px-4 py-2 border border-orange-100">
+                                <FiSliders className="w-4 h-4 text-gray-500 shrink-0" />
+                                <div className="flex-1">
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={Math.max(...availableItems.map(item => Number(item.price)), 0)}
+                                        value={maxPrice}
+                                        onChange={(e) => setMaxPrice(Number(e.target.value))}
+                                        className="w-full accent-orange-500"
+                                    />
+                                </div>
+                                <span className="text-xs font-semibold text-gray-700 shrink-0">
+                                    ≤ {formatPrice(String(maxPrice))}
+                                </span>
+                            </div>
+                        </div>
+                    </motion.div>
                 </div>
             </header>
 
-            {/* Contenu de la Carte */}
-            <main className={`mx-auto max-w-4xl px-4 sm:px-6 py-8 transition-all duration-700 transform ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-                {filteredGroups.map((group) => (
-                    <section key={group.category} className="mb-12 last:mb-0">
-                        {/* Titre de Section Stylé */}
-                        <div className="mb-6 flex items-center gap-4">
-                            <h2 className="font-serif text-2xl font-semibold text-white tracking-wide">
+            <main className={`mx-auto max-w-4xl px-4 sm:px-6 py-6 transition-all duration-700 transform ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}>
+                {filteredGroups.map(group => (
+                    <section key={group.category} className="mb-10 last:mb-0">
+                        <div className="mb-4 flex items-center gap-3">
+                            <h2 className=" text-xl sm:text-2xl font-semibold text-gray-900">
                                 {CATEGORY_LABELS[group.category]}
                             </h2>
-                            <div className="h-px flex-1 bg-linear-to-r from-amber-500/40 via-white/10 to-transparent" />
+                            <div className="h-px flex-1 bg-orange-300/60" />
                         </div>
 
-                        {/* Grille des Plats */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                            {group.items.map((item) => (
-                                <article 
-                                    key={item.id} 
-                                    className="group relative flex items-center gap-4 p-4 rounded-2xl bg-zinc-900/50 backdrop-blur-md border border-white/5 hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-black/40 hover:-translate-y-0.5"
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                            {group.items.map(item => (
+                                <motion.article
+                                    onClick={() => alert(item.name)}
+                                    key={item.id}
+                                    initial={{ opacity: 0 }}
+                                    whileInView={{ opacity: 1 }}
+                                    viewport={{ amount: 0.1 }}
+                                    transition={{ duration: 1, ease: "easeOut" }}
+                                    className="group relative aspect-square overflow-hidden rounded-3xl border border-orange-100 bg-orange-50 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-orange-100/50 hover:-translate-y-0.5"
                                 >
-                                    {/* Image du Plat */}
+                                    {/* Image de fond couvrant tout le carré */}
                                     {item.imageUrl ? (
-                                        <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-xl bg-zinc-800">
-                                            <img
-                                                src={item.imageUrl}
-                                                alt={item.name}
-                                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                loading="lazy"
-                                            />
-                                            <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                        </div>
+                                        <img
+                                            src={item.imageUrl}
+                                            alt={item.name}
+                                            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                            loading="lazy"
+                                        />
                                     ) : (
-                                        <div className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-xl bg-zinc-800/80 border border-white/5 flex items-center justify-center text-zinc-600 text-xs">
-                                            🍽️
+                                        <div className="absolute inset-0 flex items-center justify-center text-orange-400">
+                                            <FiCoffee className="w-10 h-10" />
                                         </div>
                                     )}
 
-                                    {/* Informations */}
-                                    <div className="min-w-0 flex-1 flex flex-col justify-between h-full py-0.5">
-                                        <div>
-                                            <div className="flex items-start justify-between gap-2 mb-1">
-                                                <h3 className="text-base font-semibold text-white group-hover:text-amber-400 transition-colors duration-200 line-clamp-1">
-                                                    {item.name}
-                                                </h3>
-                                            </div>
-                                            {item.description && (
-                                                <p className="text-xs sm:text-sm text-zinc-400 line-clamp-2 leading-relaxed">
-                                                    {item.description}
-                                                </p>
-                                            )}
-                                        </div>
+                                    {/* Dégradé noir transparent du bas vers le haut */}
+                                    <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
 
-                                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5">
-                                            <span className="text-sm sm:text-base font-bold text-amber-400 tracking-tight">
-                                                {formatPrice(item.price)}
-                                            </span>
+                                    {/* Contenu superposé en bas */}
+                                    <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex items-end justify-between gap-2">
+                                        {/* Nom + temps de préparation (bas gauche) */}
+                                        <div className="flex flex-col min-w-0">
+                                            <h3 className="text-sm sm:text-base font-semibold text-white line-clamp-2 drop-shadow-md">
+                                                {item.name}
+                                            </h3>
+                                            <h3 className="text-[10px] sm:text-base font-bold text-white line-clamp-2 drop-shadow-md">
+                                                {item.price} FCFA
+                                            </h3>
                                             {item.estimatedPrepTime && (
-                                                <span className="text-[11px] text-zinc-500 flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
-                                                    ⏱️ {item.estimatedPrepTime} min
+                                                <span className="mt-1 flex items-center gap-1 text-[11px] sm:text-xs text-white/90 font-medium">
+                                                    <FiClock className="w-3.5 h-3.5" />
+                                                    {item.estimatedPrepTime} min
                                                 </span>
                                             )}
                                         </div>
+
+                                        {/* Bouton rond "+" (bas droite) */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                console.log("Ajouter", item.id);
+                                                alert(`Menus ajouté: ${item.name}`)
+                                            }}
+                                            className="shrink-0 flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-orange-500 text-white shadow-lg shadow-black/20 hover:bg-orange-700 active:scale-95 transition-all duration-300"
+                                            aria-label={`Ajouter ${item.name}`}
+                                        >
+                                            <FiPlus className="w-5 h-5" />
+                                        </button>
                                     </div>
-                                </article>
+                                </motion.article>
                             ))}
                         </div>
                     </section>
@@ -197,11 +297,11 @@ function MenuPage() {
 
                 {filteredGroups.length === 0 && (
                     <div className="text-center py-20">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-2xl">
-                            🔍
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/70 border border-orange-100 flex items-center justify-center text-orange-400">
+                            <FiSearch className="w-8 h-8" />
                         </div>
-                        <p className="text-sm text-zinc-400">
-                            Aucun plat disponible dans cette catégorie pour le moment.
+                        <p className="text-sm text-gray-600">
+                            Aucun plat ne correspond à vos critères.
                         </p>
                     </div>
                 )}

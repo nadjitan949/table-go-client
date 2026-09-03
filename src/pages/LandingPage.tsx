@@ -3,7 +3,8 @@ import type { Table } from "../interfaces/table.types"
 import { useNavigate, useParams } from "react-router-dom"
 import type { ApiResponse } from "../interfaces/api.types"
 import api from "../api/axios"
-import { FiArrowRight, FiCoffee } from "react-icons/fi"
+import { FiArrowRight } from "react-icons/fi"
+import { MdPlace, MdRestaurant } from "react-icons/md"
 
 const RESTO_IMG =
     "https://image.qwenlm.ai/public_source/5d9eb5f0-3d29-43ae-88c2-4e3a1f799cff/121252d21-1eb8-445c-b8e1-e278845e48ca.png"
@@ -106,8 +107,8 @@ function LandingPage() {
                 style={{ height: "100%" }}
             >
                 {/* Badge marque - espace supérieur réduit */}
-                <span className="inline-flex items-center gap-2 mt-[2vh] px-5 py-1.5 text-sm font-bold uppercase tracking-widest text-orange-600">
-                    <FiCoffee className="w-3.5 h-3.5" />
+                <span className="inline-flex items-center gap-2 mt-[2vh] px-5 py-1.5 text-sm font-bold uppercase tracking-widest text-orange-500">
+                    <MdRestaurant className="w-3.5 h-3.5" />
                     Épices &amp; Nectar
                 </span>
 
@@ -184,19 +185,12 @@ function LandingPage() {
                         </div>
                     </div>
 
-                    {/* Pastille flottante droite */}
-                    <div className="absolute right-0 sm:right-2 md:right-6 top-1/3 sm:top-1/4 z-30">
-                        <div className="flex h-8 w-8 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-linear-to-br from-amber-400 to-orange-600 shadow-lg">
-                            <FiCoffee className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
-                        </div>
-                    </div>
-
                     {/* Carte flottante droite */}
                     <div className="absolute right-0 sm:-right-2 md:-right-6 -bottom-20 z-30 animate-float-slow">
                         <div className="w-32 sm:w-40 md:w-44 rounded-2xl border border-orange-100 bg-white p-2 sm:p-3 text-left shadow-xl">
                             <div className="flex items-center gap-1.5 sm:gap-2">
-                                <span className="flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-orange-100">
-                                    <FiCoffee className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600" />
+                                <span className="flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-green-100">
+                                    <MdPlace className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
                                 </span>
                                 <span className="text-[8px] sm:text-[10px] font-bold text-gray-800">Votre table</span>
                             </div>
@@ -221,7 +215,7 @@ function LandingPage() {
                 {/* Bouton d'action - marge inférieure proportionnelle */}
                 <button
                     onClick={goToMenu}
-                    className="group absolute bottom-10 mt-[3vh] mb-[3vh] inline-flex items-center gap-2 sm:gap-3 rounded-full bg-linear-to-r from-amber-500 to-orange-600 px-15 sm:px-10 py-5 sm:py-4 text-base sm:text-lg font-bold text-white transition-all duration-300 hover:from-amber-600 hover:to-orange-700 hover:shadow-2xl hover:shadow-orange-300 active:scale-95 focus:outline-none focus:ring-4 focus:ring-orange-300"
+                    className="group absolute bottom-10 mt-[3vh] mb-[3vh] inline-flex items-center gap-2 sm:gap-3 rounded-full bg-orange-500 px-15 sm:px-10 py-5 sm:py-4 text-base sm:text-lg font-bold text-white transition-all duration-300 hover:from-amber-600 hover:to-orange-700 hover:shadow-2xl hover:shadow-orange-300 active:scale-95 focus:outline-none focus:ring-4 focus:ring-orange-300"
                 >
                     <span>Accéder à nos menus</span>
                     <FiArrowRight className="h-5 w-5 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:translate-x-2" />

@@ -109,7 +109,7 @@ function MenuPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-orange-50 via-amber-50 to-yellow-100">
+            <div className="flex min-h-screen items-center justify-center">
                 <div className="flex flex-col items-center space-y-4">
                     <div className="w-12 h-12 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin" />
                     <p className="text-sm font-medium tracking-wide text-gray-600 animate-pulse">

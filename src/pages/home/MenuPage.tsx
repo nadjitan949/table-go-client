@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import api from "../api/axios"
-import type { MenuItem, MenuCategory } from "../interfaces/menu.types"
-import type { ApiResponse } from "../interfaces/api.types"
-import type { Table } from "../interfaces/table.types"
-import { useParams } from "react-router-dom"
+import api from "../../api/axios"
+import type { MenuItem, MenuCategory } from "../../interfaces/menu.types"
+import type { ApiResponse } from "../../interfaces/api.types"
+import type { Table } from "../../interfaces/table.types"
+import { useNavigate, useParams } from "react-router-dom"
 import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders } from "react-icons/fi"
 import { motion } from "framer-motion"
 
@@ -24,14 +24,17 @@ function MenuPage() {
     const { token } = useParams()
     const [menuItems, setMenuItems] = useState<MenuItem[] | []>([])
     const [table, setTable] = useState<Table | null>(null)
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState<boolean>(true)
     const [activeCategory, setActiveCategory] = useState<string>("all")
-    const [isLoaded, setIsLoaded] = useState(false)
-    const [showHeader, setShowHeader] = useState(true)
-    const [showFilters, setShowFilters] = useState(false)
+    const [isLoaded, setIsLoaded] = useState<boolean>(false)
+    const [showHeader, setShowHeader] = useState<boolean>(true)
+    const [showFilters, setShowFilters] = useState<boolean>(false)
 
     const [searchTerm, setSearchTerm] = useState("")
     const [maxPrice, setMaxPrice] = useState<number>(0)
+
+    const navigate = useNavigate()
+    const detailMenu = (id: number) => navigate(`/menu/${token}/${id}`)
 
     useEffect(() => {
         let lastScrollY = window.scrollY
@@ -233,7 +236,9 @@ function MenuPage() {
                         <div className="grid grid-cols-2 gap-3 sm:gap-4">
                             {group.items.map(item => (
                                 <motion.article
-                                    onClick={() => alert(item.name)}
+                                    onClick={() => {
+                                        detailMenu(item.id)
+                                    }}
                                     key={item.id}
                                     initial={{ opacity: 0 }}
                                     whileInView={{ opacity: 1 }}

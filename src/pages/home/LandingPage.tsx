@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Table } from "../interfaces/table.types"
+import type { Table } from "../../interfaces/table.types"
 import { useNavigate, useParams } from "react-router-dom"
-import type { ApiResponse } from "../interfaces/api.types"
-import api from "../api/axios"
+import type { ApiResponse } from "../../interfaces/api.types"
+import api from "../../api/axios"
 import { FiArrowRight } from "react-icons/fi"
 import { MdPlace, MdRestaurant } from "react-icons/md"
 

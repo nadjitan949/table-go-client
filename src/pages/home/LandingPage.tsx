@@ -5,6 +5,7 @@ import type { ApiResponse } from "../../interfaces/api.types"
 import api from "../../api/axios"
 import { FiArrowRight } from "react-icons/fi"
 import { MdPlace, MdRestaurant } from "react-icons/md"
+import Button from "../../ui/Button"
 
 const RESTO_IMG =
     "https://image.qwenlm.ai/public_source/5d9eb5f0-3d29-43ae-88c2-4e3a1f799cff/121252d21-1eb8-445c-b8e1-e278845e48ca.png"
@@ -213,13 +214,14 @@ function LandingPage() {
                 </div>
 
                 {/* Bouton d'action - marge inférieure proportionnelle */}
-                <button
+                <Button
+                    type="button"
                     onClick={goToMenu}
                     className="group absolute bottom-10 mt-[3vh] mb-[3vh] inline-flex items-center gap-2 sm:gap-3 rounded-full bg-orange-500 px-15 sm:px-10 py-5 sm:py-4 text-base sm:text-lg font-bold text-white transition-all duration-300 hover:from-amber-600 hover:to-orange-700 hover:shadow-2xl hover:shadow-orange-300 active:scale-95 focus:outline-none focus:ring-4 focus:ring-orange-300"
                 >
                     <span>Accéder à nos menus</span>
                     <FiArrowRight className="h-5 w-5 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:translate-x-2" />
-                </button>
+                </Button>
             </div>
         </div>
     )

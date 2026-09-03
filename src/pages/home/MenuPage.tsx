@@ -6,6 +6,7 @@ import type { Table } from "../../interfaces/table.types"
 import { useNavigate, useParams } from "react-router-dom"
 import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders } from "react-icons/fi"
 import { motion } from "framer-motion"
+import Button from "../../ui/Button"
 
 const CATEGORY_LABELS: Record<MenuCategory, string> = {
     starter: "Entrées",
@@ -153,7 +154,7 @@ function MenuPage() {
                             />
                             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         </div>
-                        <button
+                        <Button
                             onClick={() => setShowFilters(prev => !prev)}
                             className={`shrink-0 flex items-center justify-center gap-1.5 px-4 py-4 rounded-full text-sm font-medium transition-all duration-500 ease-in-out ${showFilters
                                 ? "bg-orange-500 text-white shadow-lg shadow-orange-200 scale-105"
@@ -162,7 +163,7 @@ function MenuPage() {
                         >
                             <FiSliders className="w-4 h-4" />
                             <span className="hidden sm:inline">Filtres</span>
-                        </button>
+                        </Button>
                     </div>
 
                     {/* Filtres animés avec Framer Motion */}
@@ -174,7 +175,7 @@ function MenuPage() {
                     >
                         <div className="space-y-4 mt-4">
                             <div className="flex flex-wrap gap-2">
-                                <button
+                                <Button
                                     onClick={() => setActiveCategory("all")}
                                     className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${activeCategory === "all"
                                         ? "bg-orange-500 text-white shadow-md shadow-orange-200"
@@ -182,12 +183,12 @@ function MenuPage() {
                                         }`}
                                 >
                                     Tout voir
-                                </button>
+                                </Button>
                                 {CATEGORY_ORDER.map(cat => {
                                     const hasItems = groups.some(g => g.category === cat)
                                     if (!hasItems) return null
                                     return (
-                                        <button
+                                        <Button
                                             key={cat}
                                             onClick={() => setActiveCategory(cat)}
                                             className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${activeCategory === cat
@@ -196,7 +197,7 @@ function MenuPage() {
                                                 }`}
                                         >
                                             {CATEGORY_LABELS[cat]}
-                                        </button>
+                                        </Button>
                                     )
                                 })}
                             </div>
@@ -282,7 +283,8 @@ function MenuPage() {
                                         </div>
 
                                         {/* Bouton rond "+" (bas droite) */}
-                                        <button
+                                        <Button
+                                            type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 console.log("Ajouter", item.id);
@@ -292,7 +294,7 @@ function MenuPage() {
                                             aria-label={`Ajouter ${item.name}`}
                                         >
                                             <FiPlus className="w-5 h-5" />
-                                        </button>
+                                        </Button>
                                     </div>
                                 </motion.article>
                             ))}

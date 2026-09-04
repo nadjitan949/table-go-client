@@ -14,13 +14,18 @@ import {
 import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
 import { MdRestaurant } from "react-icons/md";
 import { useNavigate, useParams } from "react-router-dom";
+import Button from "../../../ui/Button";
+import type { OrderItems } from "../../../interfaces/orderItems.types";
+import type { Order } from "../../../interfaces/order.types";
 
 function DetailsMenu() {
-    const { id } = useParams()
+    const { id, token } = useParams()
     const [menu, setMenu] = useState<MenuItem | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [quantity, setQuantity] = useState<number>(1);
     const [imageLoaded, setImageLoaded] = useState(false);
+    const [showSuggestion, setShowSuggestion] = useState<boolean>(false)
+    const [note, setNote] = useState<string | "">("")
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const { scrollY } = useScroll({ container: scrollRef });
@@ -67,6 +72,35 @@ function DetailsMenu() {
     const totalPrice = menu ? quantity * Number(menu.price) : 0;
     const unitPrice = menu ? Math.round(Number(menu.price)) : 0;
 
+    function handleAddOrder() {
+        try {
+            if (!token) return;
+            if (!menu?.id) return; // sécurité
+
+            // Création d'un objet de base avec quantité = 1 pour chaque unité
+            const baseOrderItem: OrderItems = {
+                menuId: Number(menu?.id),
+                note: note,
+            };
+
+            // Génération de N objets identiques (N = quantity)
+            const orders = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
+
+            // Construction de l'objet Order
+            const order: Order = {
+                tableToken: token,
+                order: orders,
+            };
+
+            // Enregistrement dans localStorage (conversion en JSON)
+            localStorage.setItem("Order", JSON.stringify(order));
+
+            console.log("Commande enregistrée :", order);
+            setShowSuggestion(false)
+        } catch (error) {
+            console.log(error);
+        }
+    }
     // --- Shared image loader ---
     const renderImage = (className: string) => (
         <div className={`relative overflow-hidden ${className}`}>
@@ -352,7 +386,7 @@ function DetailsMenu() {
 
                                     {/* Bouton Ajouter */}
                                     <motion.button
-                                        onClick={() => alert("Ajouté")}
+                                        onClick={() => setShowSuggestion(true)}
                                         className="flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-4 px-6 rounded-full transition-colors duration-200 active:scale-[0.98] group"
                                         whileTap={{ scale: 0.98 }}
                                         layout
@@ -522,7 +556,7 @@ function DetailsMenu() {
 
                                         {/* Bouton Ajouter */}
                                         <motion.button
-                                            onClick={() => alert("Ajouté")}
+                                            onClick={() => setShowSuggestion(true)}
                                             className="flex items-center justify-center gap-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-4 px-8 rounded-2xl transition-colors duration-200 active:scale-[0.98] shadow-lg shadow-orange-200/50 group"
                                             whileTap={{ scale: 0.98 }}
                                         >
@@ -532,18 +566,6 @@ function DetailsMenu() {
                                             <span className="text-[15px] font-semibold tracking-wide whitespace-nowrap">
                                                 Ajouter à ma commande
                                             </span>
-                                            <AnimatePresence>
-                                                {quantity > 1 && (
-                                                    <motion.span
-                                                        initial={{ scale: 0, opacity: 0 }}
-                                                        animate={{ scale: 1, opacity: 1 }}
-                                                        exit={{ scale: 0, opacity: 0 }}
-                                                        className="text-[12px] font-bold bg-white/15 px-2.5 py-1 rounded-lg tabular-nums"
-                                                    >
-                                                        ×{quantity}
-                                                    </motion.span>
-                                                )}
-                                            </AnimatePresence>
                                         </motion.button>
                                     </motion.div>
                                 </div>
@@ -552,7 +574,68 @@ function DetailsMenu() {
                     </motion.div>
                 </>
             )}
-        </AnimatePresence>
+
+            {showSuggestion && (
+                <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+                        {/* En-tête */}
+                        <div className="text-center sm:text-left">
+                            <h2 className="text-xl font-bold text-gray-900">
+                                Personnalisez votre commande
+                            </h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                                Ajoutez une note et choisissez la quantité pour{" "}
+                                <span className="font-semibold">{menu?.name}</span>.
+                            </p>
+                        </div>
+
+                        {/* Prix total */}
+                        <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-3 border border-orange-100">
+                            <span className="text-sm font-medium text-orange-700">Total</span>
+                            <span className="text-lg font-bold text-orange-600">
+                                {Number(menu?.price) * quantity} FCFA
+                            </span>
+                        </div>
+
+                        {/* Note */}
+                        <div>
+                            <label
+                                htmlFor="note"
+                                className="block text-sm font-medium text-gray-700 mb-1"
+                            >
+                                Note (optionnelle)
+                            </label>
+                            <textarea
+                                id="note"
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                placeholder="Ex: sans piment, cuisson à point, sans oignons..."
+                                className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
+                                rows={3}
+                            />
+                        </div>
+
+                        {/* Boutons */}
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <Button
+                                type="button"
+                                onClick={() => setShowSuggestion(false)}
+                                className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
+                            >
+                                Annuler
+                            </Button>
+                            <Button
+                                type="submit"
+                                onClick={handleAddOrder}
+                                className="py-3 px-4 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 active:scale-[0.98] transition flex-1"
+                            >
+                                Ajouter à ma commande
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </AnimatePresence >
     );
 }
 

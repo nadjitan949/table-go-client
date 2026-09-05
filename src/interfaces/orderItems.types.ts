@@ -1,4 +1,7 @@
+import type { AddOnMenu } from "./addon.types";
+
 export interface OrderItems {
     menuId: number,
-    note: string | ""
+    note: string | "",
+    addon: AddOnMenu[] | []
 }

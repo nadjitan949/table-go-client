@@ -1,3 +1,5 @@
+import type { AddOnMenu } from "./addon.types";
+
 export type MenuCategory = "starter" | "main" | "dessert" | "drink";
 
 export interface MenuItem {
@@ -12,4 +14,5 @@ export interface MenuItem {
     createdAt: string;
     updatedAt: string;
     deletedAt: string | null;
+    AddOns?: AddOnMenu[];
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import type { MenuItem } from "../../../interfaces/menu.types";
 import type { ApiResponse } from "../../../interfaces/api.types";
 import api from "../../../api/axios";
@@ -10,6 +10,8 @@ import {
     FiChevronLeft,
     FiTag,
     FiX,
+    FiEdit3,
+    FiCoffee,
 } from "react-icons/fi";
 import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
 import { MdRestaurant } from "react-icons/md";
@@ -17,6 +19,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import Button from "../../../ui/Button";
 import type { OrderItems } from "../../../interfaces/orderItems.types";
 import type { Order } from "../../../interfaces/order.types";
+import type { AddOnSelection } from "../../../interfaces/addon.types";
+import { addonsSubtotal } from "../../../utils/addons";
+import AddOnsModal from "./AddOnsModal";
+import ErrorBoundary from "../../../components/ErrorBoundary";
 
 function DetailsMenu() {
     const { id, token } = useParams()
@@ -26,6 +32,9 @@ function DetailsMenu() {
     const [imageLoaded, setImageLoaded] = useState(false);
     const [showSuggestion, setShowSuggestion] = useState<boolean>(false)
     const [note, setNote] = useState<string | "">("")
+    const [addOnSelection, setAddOnSelection] = useState<AddOnSelection[]>([])
+    const [showAddOns, setShowAddOns] = useState<boolean>(false)
+    const [addOnsOpenCount, setAddOnsOpenCount] = useState<number>(0)
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const { scrollY } = useScroll({ container: scrollRef });
@@ -35,11 +44,17 @@ function DetailsMenu() {
     const navigate = useNavigate()
     const goBack = () => navigate(-1)
 
+    const openAddOnsModal = () => {
+        setAddOnsOpenCount((count) => count + 1)
+        setShowAddOns(true)
+    }
+
     useEffect(() => {
         async function fetchMenuDetails() {
             setIsLoading(true);
             setImageLoaded(false);
             setQuantity(1);
+            setAddOnSelection([]);
             try {
                 const res = await api.get<ApiResponse<MenuItem>>(`/menu/details/${id}`);
                 setMenu(res.data.data);
@@ -69,7 +84,9 @@ function DetailsMenu() {
         }
     }, [id]);
 
-    const totalPrice = menu ? quantity * Number(menu.price) : 0;
+    const selectedAddOnCount = addOnSelection.reduce((sum, s) => sum + s.quantity, 0);
+    const addOnsCost = addonsSubtotal(addOnSelection);
+    const totalPrice = (menu ? quantity * Number(menu.price) : 0) + addOnsCost;
     const unitPrice = menu ? Math.round(Number(menu.price)) : 0;
 
     function handleAddOrder() {
@@ -81,6 +98,7 @@ function DetailsMenu() {
             const baseOrderItem: OrderItems = {
                 menuId: Number(menu?.id),
                 note: note,
+                addon: [],
             };
 
             // Génération de N objets identiques (N = quantity)
@@ -564,7 +582,7 @@ function DetailsMenu() {
                                                 <FiShoppingBag className="w-4.5 h-4.5 text-white transition-transform duration-200 group-hover:scale-110" />
                                             </div>
                                             <span className="text-[15px] font-semibold tracking-wide whitespace-nowrap">
-                                                Ajouter à ma commande
+                                                Ajouter
                                             </span>
                                         </motion.button>
                                     </motion.div>
@@ -576,65 +594,148 @@ function DetailsMenu() {
             )}
 
             {showSuggestion && (
-                <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
-                        {/* En-tête */}
-                        <div className="text-center sm:text-left">
-                            <h2 className="text-xl font-bold text-gray-900">
-                                Personnalisez votre commande
-                            </h2>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Ajoutez une note et choisissez la quantité pour{" "}
-                                <span className="font-semibold">{menu?.name}</span>.
-                            </p>
-                        </div>
+                <ErrorBoundary>
+                    <div key="suggestion-modal" className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                        <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+                            {/* En-tête */}
+                            <div className="text-center sm:text-left">
+                                <h2 className="text-xl font-bold text-gray-900">
+                                    Personnalisez votre commande
+                                </h2>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    Ajoutez une note et choisissez la quantité pour{" "}
+                                    <span className="font-semibold">{menu?.name}</span>.
+                                </p>
+                            </div>
 
-                        {/* Prix total */}
-                        <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-3 border border-orange-100">
-                            <span className="text-sm font-medium text-orange-700">Total</span>
-                            <span className="text-lg font-bold text-orange-600">
-                                {Number(menu?.price) * quantity} FCFA
-                            </span>
-                        </div>
+                            {/* Prix total */}
+                            <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-3 border border-orange-100">
+                                <div className="space-y-0.5">
+                                    <span className="text-sm font-medium text-orange-700">Total</span>
+                                    {addOnsCost > 0 && (
+                                        <span className="block text-[11px] text-orange-500/80">
+                                            dont {addOnsCost.toLocaleString("fr-FR")} FCFA de suppléments
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-lg font-bold text-orange-600 tabular-nums">
+                                    {totalPrice.toLocaleString("fr-FR")} FCFA
+                                </span>
+                            </div>
 
-                        {/* Note */}
-                        <div>
-                            <label
-                                htmlFor="note"
-                                className="block text-sm font-medium text-gray-700 mb-1"
-                            >
-                                Note (optionnelle)
-                            </label>
-                            <textarea
-                                id="note"
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                placeholder="Ex: sans piment, cuisson à point, sans oignons..."
-                                className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
-                                rows={3}
-                            />
-                        </div>
+                            {/* Suppléments */}
+                            {menu && menu.AddOns && menu.AddOns.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <h3 className="text-sm font-semibold text-gray-800 shrink-0">Suppléments</h3>
+                                            {selectedAddOnCount > 0 && (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[11px] font-bold">
+                                                    {selectedAddOnCount} choisi{selectedAddOnCount > 1 ? "s" : ""}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            onClick={openAddOnsModal}
+                                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:text-orange-700 active:scale-95 transition-all duration-150 shrink-0"
+                                        >
+                                            {addOnSelection.length > 0 ? (
+                                                <React.Fragment key="edit">
+                                                    <FiEdit3 className="w-4 h-4" />
+                                                    Modifier
+                                                </React.Fragment>
+                                            ) : (
+                                                <React.Fragment key="see">
+                                                    <FiPlus className="w-4 h-4" strokeWidth={2.5} />
+                                                    Voir les suppléments
+                                                </React.Fragment>
+                                            )}
+                                        </Button>
+                                    </div>
 
-                        {/* Boutons */}
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <Button
-                                type="button"
-                                onClick={() => setShowSuggestion(false)}
-                                className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
-                            >
-                                Annuler
-                            </Button>
-                            <Button
-                                type="submit"
-                                onClick={handleAddOrder}
-                                className="py-3 px-4 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 active:scale-[0.98] transition flex-1"
-                            >
-                                Ajouter à ma commande
-                            </Button>
+                                    {addOnSelection.length > 0 ? (
+                                        <div className="max-h-40 overflow-y-auto no-scrollbar -mr-2 pr-2 space-y-2">
+                                            {addOnSelection.map(({ addon, quantity: qty }) => (
+                                                <div
+                                                    key={addon.id}
+                                                    onClick={openAddOnsModal}
+                                                    className="flex items-center gap-3 bg-orange-50/60 border border-orange-100 rounded-xl px-3 py-2.5 cursor-pointer active:scale-[0.99] transition-all duration-150"
+                                                >
+                                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-white shrink-0">
+                                                        {addon.image ? (
+                                                            <img src={addon.image} alt={addon.name} className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            <div className="h-full w-full flex items-center justify-center text-orange-300">
+                                                                <FiCoffee className="w-5 h-5" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-gray-900 truncate">{addon.name}</p>
+                                                        <p className="text-xs text-gray-500">× {qty}</p>
+                                                    </div>
+                                                    <span className="text-sm font-bold text-orange-700 tabular-nums shrink-0">
+                                                        {(Number(addon.price) * qty).toLocaleString("fr-FR")} FCFA
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-xl px-4 py-3">
+                                            Aucun supplément sélectionné pour le moment.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Note */}
+                            <div>
+                                <label
+                                    htmlFor="note"
+                                    className="block text-sm font-medium text-gray-700 mb-1"
+                                >
+                                    Note (optionnelle)
+                                </label>
+                                <textarea
+                                    id="note"
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    placeholder="Ex: sans piment, cuisson à point, sans oignons..."
+                                    className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
+                                    rows={3}
+                                />
+                            </div>
+
+                            {/* Boutons */}
+                            <div className="flex sm:flex-row gap-3">
+                                <Button
+                                    type="button"
+                                    onClick={() => setShowSuggestion(false)}
+                                    className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
+                                >
+                                    Annuler
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    onClick={handleAddOrder}
+                                    className="py-3 px-4 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 active:scale-[0.98] transition flex-1"
+                                >
+                                    + Ajouter
+                                </Button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </ErrorBoundary>
             )}
+            <AddOnsModal
+                key={addOnsOpenCount}
+                open={showAddOns}
+                addOns={menu?.AddOns ?? []}
+                initialSelection={addOnSelection}
+                onValidate={(selection) => setAddOnSelection(selection)}
+                onClose={() => setShowAddOns(false)}
+            />
         </AnimatePresence >
     );
 }

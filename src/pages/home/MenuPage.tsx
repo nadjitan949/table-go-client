@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import api from "../../api/axios"
 import type { MenuItem, MenuCategory } from "../../interfaces/menu.types"
 import type { ApiResponse } from "../../interfaces/api.types"
 import type { Table } from "../../interfaces/table.types"
 import { useNavigate, useParams } from "react-router-dom"
-import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders, FiMinus } from "react-icons/fi"
+import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders, FiMinus, FiEdit3 } from "react-icons/fi"
 import { motion } from "framer-motion"
 import Button from "../../ui/Button"
 import type { OrderItems } from "../../interfaces/orderItems.types"
 import type { Order } from "../../interfaces/order.types"
+import type { AddOnSelection } from "../../interfaces/addon.types"
+import { addonsSubtotal } from "../../utils/addons"
+import AddOnsModal from "./components/AddOnsModal"
+import ErrorBoundary from "../../components/ErrorBoundary"
 
 const CATEGORY_LABELS: Record<MenuCategory, string> = {
     starter: "Entrées",
@@ -37,12 +41,20 @@ function MenuPage() {
     const [quantity, setQuantity] = useState<number>(1)
     const [selectedMenu, setSelectedMenu] = useState<MenuItem | null>(null)
     const [note, setNote] = useState<string | "">("")
+    const [addOnSelection, setAddOnSelection] = useState<AddOnSelection[]>([])
+    const [showAddOns, setShowAddOns] = useState<boolean>(false)
+    const [addOnsOpenCount, setAddOnsOpenCount] = useState<number>(0)
 
     const [searchTerm, setSearchTerm] = useState("")
     const [maxPrice, setMaxPrice] = useState<number>(0)
 
     const navigate = useNavigate()
     const detailMenu = (id: number) => navigate(`/menu/${token}/${id}`)
+
+    const openAddOnsModal = () => {
+        setAddOnsOpenCount((count) => count + 1)
+        setShowAddOns(true)
+    }
 
     useEffect(() => {
         let lastScrollY = window.scrollY
@@ -65,6 +77,7 @@ function MenuPage() {
 
     async function fetcheSelectedMenu(id: number) {
         setQuantity(1)
+        setAddOnSelection([])
         try {
             const res = await api.get<ApiResponse<MenuItem>>(`/menu/details/${id}`)
             const menu: MenuItem = res.data.data
@@ -115,6 +128,7 @@ function MenuPage() {
             const baseOrderItem: OrderItems = {
                 menuId: Number(selectedMenu.id),
                 note: note,
+                addon: [],
             };
 
             // Génération de N objets identiques (N = quantity)
@@ -135,6 +149,10 @@ function MenuPage() {
             console.log(error);
         }
     }
+
+    const selectedAddOnCount = addOnSelection.reduce((sum, s) => sum + s.quantity, 0)
+    const addOnsCost = addonsSubtotal(addOnSelection)
+    const totalCost = (selectedMenu ? Number(selectedMenu.price) * quantity : 0) + addOnsCost
 
     const availableItems = useMemo(() => {
         return menuItems.filter(item => item.isAvailable)
@@ -365,91 +383,175 @@ function MenuPage() {
             </main>
 
             {showSuggestion && (
-                <div className="fixed inset-0 p-4 w-full h-screen bg-black/50 flex z-100 items-center justify-center">
-                    <div className="max-w-md w-full mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
-                        {/* En-tête */}
-                        <div className="text-center sm:text-left">
-                            <h2 className="text-xl font-bold text-gray-900">
-                                Personnalisez votre commande
-                            </h2>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Ajoutez une note et choisissez la quantité pour{" "}
-                                <span className="font-semibold"> {selectedMenu?.name} </span>.
-                            </p>
-                        </div>
+                <ErrorBoundary>
+                    <div key="suggestion-modal" className="fixed inset-0 p-4 w-full h-screen bg-black/50 flex z-100 items-center justify-center">
+                        <div className="max-w-md w-full mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+                            {/* En-tête */}
+                            <div className="text-center sm:text-left">
+                                <h2 className="text-xl font-bold text-gray-900">
+                                    Personnalisez votre commande
+                                </h2>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    Ajoutez une note et choisissez la quantité pour{" "}
+                                    <span className="font-semibold"> {selectedMenu?.name} </span>.
+                                </p>
+                            </div>
 
-                        {/* Quantité + Prix total */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between bg-gray-50 rounded-xl p-2 border border-gray-100">
-                                <span className="text-sm font-medium text-gray-700 pl-3">Quantité</span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 active:scale-95 transition"
-                                        aria-label="Diminuer"
-                                    >
-                                        <FiMinus className="w-4 h-4" />
-                                    </Button>
-                                    <span className="w-10 text-center text-lg font-bold">{quantity}</span>
-                                    <Button
-                                        onClick={() => setQuantity(quantity + 1)}
-                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600 active:scale-95 transition"
-                                        aria-label="Augmenter"
-                                    >
-                                        <FiPlus className="w-4 h-4" />
-                                    </Button>
+                            {/* Quantité + Prix total */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between bg-gray-50 rounded-xl p-2 border border-gray-100">
+                                    <span className="text-sm font-medium text-gray-700 pl-3">Quantité</span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                            className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 active:scale-95 transition"
+                                            aria-label="Diminuer"
+                                        >
+                                            <FiMinus className="w-4 h-4" />
+                                        </Button>
+                                        <span className="w-10 text-center text-lg font-bold">{quantity}</span>
+                                        <Button
+                                            onClick={() => setQuantity(quantity + 1)}
+                                            className="w-10 h-10 flex items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600 active:scale-95 transition"
+                                            aria-label="Augmenter"
+                                        >
+                                            <FiPlus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Prix total */}
+                                <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-2.5 border border-orange-100">
+                                    <div className="space-y-0.5">
+                                        <span className="text-sm font-medium text-orange-700">Total</span>
+                                        {addOnsCost > 0 && (
+                                            <span className="block text-[11px] text-orange-500/80">
+                                                dont {addOnsCost.toLocaleString("fr-FR")} FCFA de suppléments
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="text-lg font-bold text-orange-600 tabular-nums">
+                                        {totalCost.toLocaleString("fr-FR")} FCFA
+                                    </span>
                                 </div>
                             </div>
 
-                            {/* Prix total */}
-                            <div className="flex items-center justify-between bg-orange-50 rounded-xl px-4 py-2 border border-orange-100">
-                                <span className="text-sm font-medium text-orange-700">Total</span>
-                                <span className="text-lg font-bold text-orange-600">
-                                    {Number(selectedMenu?.price) * quantity}
-                                </span>
+                            {/* Suppléments */}
+                            {selectedMenu && selectedMenu.AddOns && selectedMenu.AddOns.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <h3 className="text-sm font-semibold text-gray-800 shrink-0">Suppléments</h3>
+                                            {selectedAddOnCount > 0 && (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[11px] font-bold">
+                                                    {selectedAddOnCount} choisi{selectedAddOnCount > 1 ? "s" : ""}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={openAddOnsModal}
+                                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:text-orange-700 active:scale-95 transition-all duration-150 shrink-0"
+                                        >
+                                            {addOnSelection.length > 0 ? (
+                                                <React.Fragment key="edit">
+                                                    <FiEdit3 className="w-4 h-4" />
+                                                    Modifier
+                                                </React.Fragment>
+                                            ) : (
+                                                <React.Fragment key="see">
+                                                    <FiPlus className="w-4 h-4" strokeWidth={2.5} />
+                                                    Voir les suppléments
+                                                </React.Fragment>
+                                            )}
+                                        </button>
+                                    </div>
+
+                                    {addOnSelection.length > 0 ? (
+                                        <div className="max-h-40 overflow-y-auto no-scrollbar -mr-2 pr-2 space-y-2">
+                                            {addOnSelection.map(({ addon, quantity: qty }) => (
+                                                <div
+                                                    key={addon.id}
+                                                    onClick={openAddOnsModal}
+                                                    className="flex items-center gap-3 bg-orange-50/60 border border-orange-100 rounded-xl px-3 py-2.5 cursor-pointer active:scale-[0.99] transition-all duration-150"
+                                                >
+                                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-white shrink-0">
+                                                        {addon.image ? (
+                                                            <img src={addon.image} alt={addon.name} className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            <div className="h-full w-full flex items-center justify-center text-orange-300">
+                                                                <FiCoffee className="w-5 h-5" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-gray-900 truncate">{addon.name}</p>
+                                                        <p className="text-xs text-gray-500">× {qty}</p>
+                                                    </div>
+                                                    <span className="text-sm font-bold text-orange-700 tabular-nums shrink-0">
+                                                        {(Number(addon.price) * qty).toLocaleString("fr-FR")} FCFA
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-xl px-4 py-3">
+                                            Aucun supplément sélectionné pour le moment.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Note */}
+                            <div>
+                                <label
+                                    htmlFor="note"
+                                    className="block text-sm font-medium text-gray-700 mb-1"
+                                >
+                                    Note (Optionelle)
+                                </label>
+                                <textarea
+                                    id="note"
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    placeholder="Ex: sans piment, cuisson à point, sans oignons..."
+                                    className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
+                                    rows={3}
+                                />
+                            </div>
+
+                            {/* Boutons */}
+                            <div className="flex sm:flex-row gap-3">
+
+                                <Button
+                                    type="button"
+                                    onClick={() => setShowSuggestion(false)}
+                                    className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
+                                >
+                                    Annuler
+                                </Button>
+
+                                <Button
+                                    type="submit"
+                                    onClick={handleAddOrder}
+                                    className="py-3 px-4 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 active:scale-[0.98] transition flex-1"
+                                >
+                                    + Ajouter
+                                </Button>
                             </div>
                         </div>
-
-                        {/* Note */}
-                        <div>
-                            <label
-                                htmlFor="note"
-                                className="block text-sm font-medium text-gray-700 mb-1"
-                            >
-                                Note (Optionelle)
-                            </label>
-                            <textarea
-                                id="note"
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                placeholder="Ex: sans piment, cuisson à point, sans oignons..."
-                                className="w-full p-3 border border-gray-200 rounded-xl resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
-                                rows={3}
-                            />
-                        </div>
-
-                        {/* Boutons */}
-                        <div className="flex flex-col sm:flex-row gap-3">
-
-                            <Button
-                                type="button"
-                                onClick={() => setShowSuggestion(false)}
-                                className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
-                            >
-                                Annuler
-                            </Button>
-
-                            <Button
-                                type="submit"
-                                onClick={handleAddOrder}
-                                className="py-3 px-4 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 active:scale-[0.98] transition flex-1"
-                            >
-                                Ajouter à ma commande
-                            </Button>
-                        </div>
                     </div>
-                </div>
+                </ErrorBoundary>
             )}
+
+            <AddOnsModal
+                key={addOnsOpenCount}
+                open={showAddOns}
+                addOns={selectedMenu?.AddOns ?? []}
+                initialSelection={addOnSelection}
+                onClose={() => setShowAddOns(false)}
+                onValidate={(selection) => setAddOnSelection(selection)}
+            />
         </div>
     )
 }

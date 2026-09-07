@@ -1,5 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import Button from "../ui/Button";
 import { MdRestaurant } from "react-icons/md";
 import type { Order } from "../interfaces/order.types";
@@ -53,6 +52,37 @@ function OrdersCart() {
     const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>(0);
     const constraintsRef = useRef<HTMLDivElement>(null);
     const wasVisibleRef = useRef<boolean>(false);
+
+    // ---- Drag natif (remplace framer-motion) ----
+    const [dragPos, setDragPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState<boolean>(false);
+    const dragStartRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+    const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+        setOnboardingStep(0);
+        setIsDragging(true);
+        dragStartRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            origX: dragPos.x,
+            origY: dragPos.y,
+        };
+        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+        const start = dragStartRef.current;
+        if (!start) return;
+        setDragPos({
+            x: start.origX + (e.clientX - start.startX),
+            y: start.origY + (e.clientY - start.startY),
+        });
+    };
+
+    const handlePointerEnd = () => {
+        dragStartRef.current = null;
+        setIsDragging(false);
+    };
 
     // ---- Mise à jour du compteur ----
     const updateCount = useCallback(() => {
@@ -149,36 +179,32 @@ function OrdersCart() {
                     ref={constraintsRef}
                     className="fixed inset-4 z-9999 pointer-events-none"
                 >
-                    <motion.div
-                        className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-auto"
-                        style={{ touchAction: "none" }}
-                        drag
-                        dragConstraints={constraintsRef}
-                        dragElastic={0.05}
-                        dragMomentum={false}
-                        whileDrag={{ scale: 1.08, cursor: "grabbing" }}
-                        onDragStart={() => setOnboardingStep(0)}
+                    <div
+                        className="absolute right-1 top-1/2 pointer-events-auto touch-none"
+                        style={{
+                            transform: `translate(${dragPos.x}px, calc(-50% + ${dragPos.y}px))`,
+                            touchAction: "none",
+                        }}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerEnd}
+                        onPointerCancel={handlePointerEnd}
                     >
                         {/* Bulle d'onboarding — rendu conditionnel simple (entrée seulement) */}
                         {onboardingStep > 0 && (
-                            <motion.div
+                            <div
                                 key={`bubble-${onboardingStep}`}
-                                initial={{ opacity: 0, x: 15, scale: 0.9 }}
-                                animate={{ opacity: 1, x: 0, scale: 1 }}
-                                transition={{ duration: 0.3, ease: "easeOut" }}
-                                className="absolute right-full top-1/2 -translate-y-1/2 mr-4 pointer-events-none max-w-[calc(90vw-6rem)] sm:max-w-[320px]"
+                                className="absolute right-full top-1/2 -translate-y-1/2 mr-4 pointer-events-none max-w-[calc(90vw-6rem)] sm:max-w-[320px] animate-bubble-in"
                             >
                                 <div className="relative bg-white text-gray-800 text-[13px] font-medium px-4 py-2.5 rounded-2xl shadow-xl shadow-black/10 border border-gray-100 whitespace-normal wrap-break-words w-max max-w-full">
                                     {bubbleMessages[onboardingStep]}
                                     <div className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45" />
                                 </div>
-                            </motion.div>
+                            </div>
                         )}
 
-                        <motion.div
-                            className="w-15 h-15 bg-orange-500 shadow-xl rounded-full cursor-grab active:cursor-grabbing"
-                            animate={bounce ? { scale: [1, 1.18, 0.92, 1.05, 1] } : { scale: 1 }}
-                            transition={{ duration: 0.45, ease: "easeOut" }}
+                        <div
+                            className={`w-15 h-15 bg-orange-500 shadow-xl rounded-full transition-transform duration-150 ${isDragging ? "cursor-grabbing scale-[1.08]" : "cursor-grab"} ${bounce ? "animate-cart-bounce" : ""}`}
                         >
                             <Button
                                 type="button"
@@ -188,29 +214,20 @@ function OrdersCart() {
                                 <MdRestaurant size={28} />
                                 {/* Badge compteur — rendu conditionnel simple */}
                                 {count > 0 && (
-                                    <motion.div
-                                        className="absolute -top-1 -right-1 min-w-6 h-6 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-md px-1"
-                                        initial={{ scale: 0, opacity: 0 }}
-                                        animate={{ scale: 1, opacity: 1 }}
-                                        transition={{
-                                            type: "spring",
-                                            stiffness: 500,
-                                            damping: 25,
-                                        }}
+                                    <div
+                                        className="absolute -top-1 -right-1 min-w-6 h-6 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-md px-1 animate-badge-pop"
                                     >
-                                        <motion.span
+                                        <span
                                             key={count}
-                                            initial={{ y: -8, opacity: 0 }}
-                                            animate={{ y: 0, opacity: 1 }}
-                                            transition={{ duration: 0.2, ease: "easeOut" }}
+                                            className="animate-count-drop"
                                         >
                                             {count}
-                                        </motion.span>
-                                    </motion.div>
+                                        </span>
+                                    </div>
                                 )}
                             </Button>
-                        </motion.div>
-                    </motion.div>
+                        </div>
+                    </div>
                 </div>
             )}
         </>

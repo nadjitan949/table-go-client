@@ -5,7 +5,6 @@ import type { ApiResponse } from "../../interfaces/api.types"
 import type { Table } from "../../interfaces/table.types"
 import { useNavigate, useParams } from "react-router-dom"
 import { FiClock, FiSearch, FiMapPin, FiCoffee, FiPlus, FiSliders, FiMinus, FiEdit3 } from "react-icons/fi"
-import { motion } from "framer-motion"
 import Button from "../../ui/Button"
 import type { OrderItems } from "../../interfaces/orderItems.types"
 import type { Order } from "../../interfaces/order.types"
@@ -43,6 +42,8 @@ function MenuPage() {
     const [note, setNote] = useState<string | "">("")
     const [addOnSelection, setAddOnSelection] = useState<AddOnSelection[]>([])
     const [showAddOns, setShowAddOns] = useState<boolean>(false)
+    const [isSelectedMenuLoading, setIsSelectedMenuLoading] = useState<boolean>(false)
+    const [suggestionClosing, setSuggestionClosing] = useState<boolean>(false)
 
     const [searchTerm, setSearchTerm] = useState<string>("")
     const [maxPrice, setMaxPrice] = useState<number>(0)
@@ -52,6 +53,14 @@ function MenuPage() {
 
     const openAddOnsModal = () => {
         setShowAddOns(true)
+    }
+
+    const closeSuggestion = () => {
+        setSuggestionClosing(true)
+        setTimeout(() => {
+            setShowSuggestion(false)
+            setSuggestionClosing(false)
+        }, 260)
     }
 
     useEffect(() => {
@@ -76,15 +85,16 @@ function MenuPage() {
     async function fetcheSelectedMenu(id: number) {
         setQuantity(1)
         setAddOnSelection([])
+        setIsSelectedMenuLoading(true)
         try {
             const res = await api.get<ApiResponse<MenuItem>>(`/menu/details/${id}`)
             const menu: MenuItem = res.data.data
             setSelectedMenu(menu)
-
         } catch (error) {
             console.log(error)
+        } finally {
+            setIsSelectedMenuLoading(false)
         }
-
     }
 
     useEffect(() => {
@@ -99,7 +109,7 @@ function MenuPage() {
                 console.log(error)
             } finally {
                 setLoading(false)
-                setTimeout(() => setIsLoaded(true), 100)
+                setIsLoaded(true)
             }
         }
         fetchMenu()
@@ -116,6 +126,25 @@ function MenuPage() {
         }
         fetchTables()
     }, [token])
+
+    // Révélation au scroll des cartes du menu (IntersectionObserver natif)
+    useEffect(() => {
+        const els = Array.from(document.querySelectorAll("[data-reveal]"))
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add("is-revealed")
+                    } else {
+                        entry.target.classList.remove("is-revealed")
+                    }
+                })
+            },
+            { threshold: 0.08 }
+        )
+        els.forEach(el => observer.observe(el))
+        return () => observer.disconnect()
+    }, [menuItems, activeCategory, searchTerm, maxPrice])
 
     function handleAddOrder() {
         try {
@@ -142,7 +171,7 @@ function MenuPage() {
             localStorage.setItem("Order", JSON.stringify(order));
 
             console.log("Commande enregistrée :", order);
-            setShowSuggestion(false)
+            closeSuggestion()
         } catch (error) {
             console.log(error);
         }
@@ -176,19 +205,6 @@ function MenuPage() {
     const filteredGroups = activeCategory === "all"
         ? groups
         : groups.filter(g => g.category === activeCategory)
-
-    if (loading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="flex flex-col items-center space-y-4">
-                    <div className="w-12 h-12 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin" />
-                    <p className="text-sm font-medium tracking-wide text-gray-600 animate-pulse">
-                        Préparation de votre menu...
-                    </p>
-                </div>
-            </div>
-        )
-    }
 
     return (
         <div className="min-h-screen text-gray-800 font-sans selection:bg-orange-200 selection:text-gray-900 pb-20">
@@ -232,12 +248,10 @@ function MenuPage() {
                         </Button>
                     </div>
 
-                    {/* Filtres animés avec Framer Motion */}
-                    <motion.div
-                        initial={false}
-                        animate={{ height: showFilters ? "auto" : 0, opacity: showFilters ? 1 : 0 }}
-                        transition={{ duration: 0.5, ease: "easeInOut" }}
-                        className="overflow-hidden"
+                    {/* Filtres animés en natif (CSS transition) */}
+                    <div
+                        className={`overflow-hidden transition-[max-height,opacity] duration-500 ease-in-out ${showFilters ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                            }`}
                     >
                         <div className="space-y-4 mt-4">
                             <div className="flex flex-wrap gap-2">
@@ -285,12 +299,36 @@ function MenuPage() {
                                 </span>
                             </div>
                         </div>
-                    </motion.div>
+                    </div>
                 </div>
             </header>
 
-            <main className={`mx-auto max-w-4xl px-4 sm:px-6 py-6 transition-all duration-700 transform ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            <main className={`mx-auto max-w-4xl px-4 sm:px-6 py-6 transition-all duration-700 transform ${loading || isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                 }`}>
+                {loading ? (
+                    <>
+                        {CATEGORY_ORDER.map(cat => (
+                            <section key={cat} className="mb-10 last:mb-0">
+                                <div className="mb-4 flex items-center gap-3">
+                                    <div className="skeleton-block h-5 w-28" />
+                                    <div className="h-px flex-1 bg-orange-300/60" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                                    {Array.from({ length: 4 }).map((_, i) => (
+                                        <div key={i} className="relative aspect-square overflow-hidden rounded-3xl">
+                                            <div className="skeleton-block absolute inset-0" />
+                                            <div className="absolute inset-x-0 bottom-0 p-3 space-y-1.5">
+                                                <div className="skeleton-block h-4 w-3/4" />
+                                                <div className="skeleton-block h-3 w-1/2" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        ))}
+                    </>
+                ) : (
+                    <>
                 {filteredGroups.map(group => (
                     <section key={group.category} className="mb-10 last:mb-0">
                         <div className="mb-4 flex items-center gap-3">
@@ -302,16 +340,13 @@ function MenuPage() {
 
                         <div className="grid grid-cols-2 gap-3 sm:gap-4">
                             {group.items.map(item => (
-                                <motion.article
+                                <article
                                     onClick={() => {
                                         detailMenu(item.id)
                                     }}
                                     key={item.id}
-                                    initial={{ opacity: 0 }}
-                                    whileInView={{ opacity: 1 }}
-                                    viewport={{ amount: 0.1 }}
-                                    transition={{ duration: 1, ease: "easeOut" }}
-                                    className="group relative aspect-square overflow-hidden rounded-3xl border border-orange-100 bg-orange-50 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-orange-100/50 hover:-translate-y-0.5"
+                                    data-reveal
+                                    className="group relative aspect-square overflow-hidden rounded-3xl border border-orange-100 bg-orange-50 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-orange-100/50 hover:-translate-y-0.5 reveal-item"
                                 >
                                     {/* Image de fond couvrant tout le carré */}
                                     {item.imageUrl ? (
@@ -362,7 +397,7 @@ function MenuPage() {
                                             <FiPlus className="w-5 h-5" />
                                         </Button>
                                     </div>
-                                </motion.article>
+                                </article>
                             ))}
                         </div>
                     </section>
@@ -378,22 +413,31 @@ function MenuPage() {
                         </p>
                     </div>
                 )}
+                    </>
+                )}
             </main>
 
-            {showSuggestion && (
+            {(showSuggestion || suggestionClosing) && (
                 <ErrorBoundary>
-                    <div key="suggestion-modal" className="fixed inset-0 p-4 w-full h-screen bg-black/50 flex z-100 items-center justify-center">
-                        <div className="max-w-md w-full mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+                    <div key="suggestion-modal" className={`fixed inset-0 p-4 w-full h-screen bg-black/50 flex z-100 items-center justify-center animate-modal-fade-in ${suggestionClosing ? "animate-modal-fade-out" : ""}`}>
+                        <div className={`max-w-md w-full mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6 animate-modal-pop-in ${suggestionClosing ? "animate-modal-pop-out" : ""}`}>
                             {/* En-tête */}
-                            <div className="text-center sm:text-left">
-                                <h2 className="text-xl font-bold text-gray-900">
-                                    Personnalisez votre commande
-                                </h2>
-                                <p className="text-sm text-gray-600 mt-1">
-                                    Ajoutez une note et choisissez la quantité pour{" "}
-                                    <span className="font-semibold"> {selectedMenu?.name} </span>.
-                                </p>
-                            </div>
+                            {isSelectedMenuLoading || !selectedMenu ? (
+                                <div className="space-y-3">
+                                    <div className="skeleton-block h-7 w-2/3" />
+                                    <div className="skeleton-block h-4 w-1/2" />
+                                </div>
+                            ) : (
+                                <div className="text-center sm:text-left">
+                                    <h2 className="text-xl font-bold text-gray-900">
+                                        Personnalisez votre commande
+                                    </h2>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        Ajoutez une note et choisissez la quantité pour{" "} <br />
+                                        <span className="font-semibold"> {selectedMenu?.name} </span>.
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Quantité + Prix total */}
                             <div className="space-y-3">
@@ -435,7 +479,13 @@ function MenuPage() {
                             </div>
 
                             {/* Suppléments */}
-                            {selectedMenu && selectedMenu.AddOns && selectedMenu.AddOns.length > 0 && (
+                            {isSelectedMenuLoading || !selectedMenu ? (
+                                <div className="space-y-2">
+                                    <div className="skeleton-block h-4 w-1/3" />
+                                    <div className="skeleton-block h-14 w-full" />
+                                    <div className="skeleton-block h-14 w-full" />
+                                </div>
+                            ) : selectedMenu && selectedMenu.AddOns && selectedMenu.AddOns.length > 0 && (
                                 <div>
                                     <div className="flex items-center justify-between gap-3 mb-2.5">
                                         <div className="flex items-center gap-2 min-w-0">
@@ -523,7 +573,7 @@ function MenuPage() {
 
                                 <Button
                                     type="button"
-                                    onClick={() => setShowSuggestion(false)}
+                                    onClick={closeSuggestion}
                                     className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
                                 >
                                     Annuler

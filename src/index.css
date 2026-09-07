@@ -58,27 +58,127 @@
 }
 
 .animate-modal-fade-in {
-  animation: modal-fade-in 0.2s ease-out both;
+  animation: modal-fade-in 0.3s ease-out both;
 }
 .animate-modal-slide-up {
-  animation: modal-slide-up 0.4s cubic-bezier(0.32, 1.2, 0.6, 1) both;
+  animation: modal-slide-up 0.5s cubic-bezier(0.32, 1.2, 0.6, 1) both;
 }
 .animate-modal-pop-in {
-  animation: modal-pop-in 0.28s cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: modal-pop-in 0.35s cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 .animate-card-pop-in {
-  animation: card-pop-in 0.3s cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: card-pop-in 0.45s cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 .animate-slide-in-right {
-  animation: slide-in-right 0.22s cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: slide-in-right 0.3s cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 .animate-slide-in-left {
-  animation: slide-in-left 0.22s cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: slide-in-left 0.3s cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 .animate-check-pop {
-  animation: check-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: check-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* ---------------------------------------------------------- */
+/* Animations natives supplémentaires (sans framer-motion)     */
+/* ---------------------------------------------------------- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateX(15px) scale(0.9); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes cart-bounce {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.18); }
+  55%  { transform: scale(0.92); }
+  75%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+@keyframes badge-pop {
+  from { opacity: 0; transform: scale(0); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes count-drop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes price-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.animate-bubble-in {
+  animation: bubble-in 0.35s ease-out both;
+}
+.animate-cart-bounce {
+  animation: cart-bounce 0.55s ease-out;
+}
+.animate-badge-pop {
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.animate-count-drop {
+  animation: count-drop 0.25s ease-out both;
+}
+.animate-price-rise {
+  animation: price-rise 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+/* ---------------------------------------------------------- */
+/* Fermeture des modals (fade out + léger scale)               */
+/* ---------------------------------------------------------- */
+@keyframes modal-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes modal-pop-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(14px) scale(0.97); }
+}
+
+.animate-modal-fade-out {
+  animation: modal-fade-out 0.25s ease-in both;
+}
+.animate-modal-pop-out {
+  animation: modal-pop-out 0.25s ease-in both;
+}
+
+
+/* ---------------------------------------------------------- */
+/* Revelation au scroll (liste du menu, opacite)           */
+/* ---------------------------------------------------------- */
+.reveal-item {
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.reveal-item.is-revealed {
+  opacity: 1;
+}
+/* ---------------------------------------------------------- */
+/* Squelettes de chargement (shimmer, degrade anime)      */
+/* ---------------------------------------------------------- */
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  background-color: #f3f4f6;
+  border-radius: 0.75rem;
+}
+.skeleton-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s infinite;
+}
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .animate-modal-fade-in,
   .animate-modal-slide-up,
@@ -86,7 +186,23 @@
   .animate-card-pop-in,
   .animate-slide-in-right,
   .animate-slide-in-left,
-  .animate-check-pop {
+  .animate-check-pop,
+  .animate-fade-up,
+  .animate-bubble-in,
+  .animate-cart-bounce,
+  .animate-badge-pop,
+  .animate-count-drop,
+  .animate-price-rise,
+  .animate-modal-fade-out,
+  .animate-modal-pop-out {
     animation-duration: 0.01ms;
+  }
+  .reveal-item {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none;
+  }
+  .skeleton-block::after {
+    animation: none;
   }
 }

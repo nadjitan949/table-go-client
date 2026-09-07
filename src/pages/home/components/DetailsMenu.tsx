@@ -13,7 +13,6 @@ import {
     FiEdit3,
     FiCoffee,
 } from "react-icons/fi";
-import { motion, useScroll, useTransform } from "framer-motion";
 import { MdRestaurant } from "react-icons/md";
 import { useNavigate, useParams } from "react-router-dom";
 import Button from "../../../ui/Button";
@@ -34,17 +33,40 @@ function DetailsMenu() {
     const [note, setNote] = useState<string | "">("")
     const [addOnSelection, setAddOnSelection] = useState<AddOnSelection[]>([])
     const [showAddOns, setShowAddOns] = useState<boolean>(false)
+    const [suggestionClosing, setSuggestionClosing] = useState<boolean>(false)
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    const { scrollY } = useScroll({ container: scrollRef });
-    const imageScale = useTransform(scrollY, [0, 300], [1, 1.15]);
-    const imageY = useTransform(scrollY, [0, 300], [0, 60]);
+    const imageRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const updateImage = () => {
+            const progress = Math.min(el.scrollTop / 300, 1);
+            const scale = 1 + progress * 0.15;
+            const y = progress * 60;
+            if (imageRef.current) {
+                imageRef.current.style.transform = `scale(${scale}) translateY(${y}px)`;
+            }
+        };
+        updateImage();
+        el.addEventListener("scroll", updateImage, { passive: true });
+        return () => el.removeEventListener("scroll", updateImage);
+    }, []);
 
     const navigate = useNavigate()
     const goBack = () => navigate(-1)
 
     const openAddOnsModal = () => {
         setShowAddOns(true)
+    }
+
+    const closeSuggestion = () => {
+        setSuggestionClosing(true)
+        setTimeout(() => {
+            setShowSuggestion(false)
+            setSuggestionClosing(false)
+        }, 260)
     }
 
     useEffect(() => {
@@ -112,7 +134,7 @@ function DetailsMenu() {
             localStorage.setItem("Order", JSON.stringify(order));
 
             console.log("Commande enregistrée :", order);
-            setShowSuggestion(false)
+            closeSuggestion()
         } catch (error) {
             console.log(error);
         }
@@ -120,20 +142,12 @@ function DetailsMenu() {
     // --- Shared image loader ---
     const renderImage = (className: string) => (
         <div className={`relative overflow-hidden ${className}`}>
-            <motion.div
-                className="absolute inset-0 w-full h-full"
-                style={{ scale: imageScale, y: imageY }}
+            <div
+                ref={imageRef}
+                className="absolute inset-0 w-full h-full will-change-transform"
             >
                 {isLoading ? (
-                    <div className="h-full flex flex-col items-center justify-center gap-3">
-                        <div className="relative w-12 h-12">
-                            <div className="absolute inset-0 border-[3px] border-orange-100 rounded-full" />
-                            <div className="absolute inset-0 border-[3px] border-transparent border-t-orange-500 rounded-full animate-spin" />
-                        </div>
-                        <span className="text-xs text-orange-400/80 font-medium tracking-wide">
-                            Chargement...
-                        </span>
-                    </div>
+                    <div className="h-full w-full skeleton-block" />
                 ) : menu?.imageUrl ? (
                     <>
                         {!imageLoaded && (
@@ -155,7 +169,7 @@ function DetailsMenu() {
                         </div>
                     </div>
                 )}
-            </motion.div>
+            </div>
             <div className="absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-transparent pointer-events-none" />
             <div className="absolute inset-0 bg-linear-to-r from-black/10 via-transparent to-black/10 pointer-events-none" />
         </div>
@@ -163,11 +177,9 @@ function DetailsMenu() {
 
     // --- Shared quantity selector ---
     const renderQuantitySelector = () => (
-        <motion.div
-            className="pt-2"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+        <div
+            className="pt-2 animate-fade-up"
+            style={{ animationDelay: "0.35s" }}
         >
             <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-2.5">
                 Quantité
@@ -220,26 +232,24 @@ function DetailsMenu() {
                     </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <motion.button
+                    <button
                         onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
                         className="w-11 h-11 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600 active:scale-90 transition-all duration-150 shadow-sm"
                         aria-label="Diminuer"
-                        whileTap={{ scale: 0.88 }}
                         disabled={quantity <= 1}
                     >
                         <FiMinus className="w-4 h-4" strokeWidth={2.5} />
-                    </motion.button>
-                    <motion.button
+                    </button>
+                    <button
                         onClick={() => setQuantity((prev) => prev + 1)}
                         className="w-11 h-11 flex items-center justify-center rounded-xl bg-orange-500 text-white hover:bg-orange-600 active:scale-90 transition-all duration-150 shadow-sm"
                         aria-label="Augmenter"
-                        whileTap={{ scale: 0.88 }}
                     >
                         <FiPlus className="w-4 h-4" strokeWidth={2.5} />
-                    </motion.button>
+                    </button>
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 
     // --- Shared meta chips ---
@@ -285,11 +295,8 @@ function DetailsMenu() {
                     {/* ======================== */}
                     {/* MOBILE LAYOUT (< lg)     */}
                     {/* ======================== */}
-                    <motion.div
-                        className="fixed inset-0 z-100 bg-black lg:hidden"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.25 }}
+                    <div
+                        className="fixed inset-0 z-100 bg-black lg:hidden animate-modal-fade-in"
                     >
                         {/* Scrollable Content Area */}
                         <div
@@ -310,24 +317,32 @@ function DetailsMenu() {
                                 </div>
 
                                 <div className="px-5 pb-40">
-                                    <motion.div
-                                        className="pt-2 pb-4"
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.15, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                                    {isLoading ? (
+                                        <div className="pt-2 pb-4 space-y-4">
+                                            <div className="skeleton-block h-7 w-3/4" />
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="skeleton-block h-9 w-28 rounded-full" />
+                                                <div className="skeleton-block h-9 w-24 rounded-full" />
+                                            </div>
+                                            <div className="skeleton-block h-4 w-1/2" />
+                                            <div className="skeleton-block h-16 w-full" />
+                                        </div>
+                                    ) : (
+                                        <>
+                                    <div
+                                        className="pt-2 pb-4 animate-fade-up"
+                                        style={{ animationDelay: "0.15s" }}
                                     >
                                         <h1 className="text-[1.7rem] font-extrabold text-gray-900 leading-[1.15] tracking-tight">
                                             {menu?.name}
                                         </h1>
                                         {renderMetaChips()}
-                                    </motion.div>
+                                    </div>
 
                                     {menu?.description && (
-                                        <motion.div
-                                            className="py-5"
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.25, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                                        <div
+                                            className="py-5 animate-fade-up"
+                                            style={{ animationDelay: "0.25s" }}
                                         >
                                             <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-2.5">
                                                 À propos
@@ -337,10 +352,12 @@ function DetailsMenu() {
                                                     {menu.description}
                                                 </p>
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     )}
 
                                     {renderQuantitySelector()}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -348,42 +365,32 @@ function DetailsMenu() {
                         {/* Top Back Button */}
                         <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
                             <div className="flex items-center justify-between px-3 pt-[env(safe-area-inset-top)] h-14">
-                                <motion.button
+                                <button
                                     onClick={goBack}
                                     className="w-10 h-10 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-md border border-white/50 text-gray-700 hover:bg-white active:scale-90 transition-all shadow-lg shadow-black/10 pointer-events-auto"
-                                    whileTap={{ scale: 0.88 }}
                                     aria-label="Retour"
                                 >
                                     <FiChevronLeft className="w-5 h-5" strokeWidth={2.5} />
-                                </motion.button>
+                                </button>
                                 <div className="w-10" />
                             </div>
                         </div>
 
                         {/* Fixed Bottom CTA */}
-                        <motion.div
+                        <div
                             className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none"
-                            layout
-                            transition={{ type: "spring", stiffness: 350, damping: 35 }}
                         >
                             <div className="bg-white pt-10 pb-[calc(env(safe-area-inset-bottom)+16px)] px-5 pointer-events-auto">
-                                <motion.div
+                                <div
                                     className="flex items-stretch justify-between"
-                                    layout
-                                    transition={{ type: "spring", stiffness: 350, damping: 35 }}
                                 >
                                     {/* Prix Total */}
-                                    <motion.div
+                                    <div
                                         className="flex items-center justify-center bg-gray-50 border border-gray-100 rounded-full px-4 min-w-25"
-                                        layout
-                                        transition={{ type: "spring", stiffness: 350, damping: 35 }}
                                     >
-                                        <motion.div
+                                        <div
                                             key={totalPrice}
-                                            className="flex flex-col items-center"
-                                            initial={{ y: 6, opacity: 0 }}
-                                            animate={{ y: 0, opacity: 1 }}
-                                            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                                            className="flex flex-col items-center animate-price-rise"
                                         >
                                             <div className="flex items-baseline gap-0.5">
                                                 <span className="text-lg font-extrabold text-gray-900 tabular-nums tracking-tight">
@@ -393,16 +400,13 @@ function DetailsMenu() {
                                                     FCFA
                                                 </span>
                                             </div>
-                                        </motion.div>
-                                    </motion.div>
+                                        </div>
+                                    </div>
 
                                     {/* Bouton Ajouter */}
-                                    <motion.button
+                                    <button
                                         onClick={() => setShowSuggestion(true)}
                                         className="flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-4 px-6 rounded-full transition-colors duration-200 active:scale-[0.98] group"
-                                        whileTap={{ scale: 0.98 }}
-                                        layout
-                                        transition={{ type: "spring", stiffness: 350, damping: 35 }}
                                     >
                                         <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center shrink-0">
                                             <FiShoppingBag className="w-4 h-4 text-white transition-transform duration-200 group-hover:scale-110" />
@@ -410,61 +414,42 @@ function DetailsMenu() {
                                         <span className="text-[15px] font-semibold tracking-wide whitespace-nowrap">
                                             Ajouter
                                         </span>
-                                    </motion.button>
-                                </motion.div>
+                                    </button>
+                                </div>
                             </div>
-                        </motion.div>
-                    </motion.div>
+                        </div>
+                    </div>
 
                     {/* ======================== */}
                     {/* DESKTOP LAYOUT (lg+)     */}
                     {/* ======================== */}
-                    <motion.div
-                        className="hidden lg:flex fixed bg-white inset-0 z-100 items-center justify-center"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.25 }}
+                    <div
+                        className="hidden lg:flex fixed bg-white inset-0 z-100 items-center justify-center animate-modal-fade-in"
                     >
                         {/* Backdrop */}
-                        <motion.div
+                        <div
                             className="absolute inset-0"
                             onClick={goBack}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
                         />
 
                         {/* Modal */}
-                        <motion.div
-                            className="relative w-full max-w-5xl max-h-[90vh] bg-white overflow-hidden flex"
-                            initial={{ opacity: 0, y: 30, scale: 0.97 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                        <div
+                            className="relative w-full max-w-5xl max-h-[90vh] bg-white overflow-hidden flex animate-modal-pop-in"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Close Button */}
-                            <motion.button
+                            <button
                                 onClick={goBack}
-                                className="absolute top-5 right-5 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-gray-500 hover:text-gray-900 hover:bg-white transition-all duration-200 shadow-lg shadow-black/10 hover:scale-110 active:scale-95"
+                                className="absolute top-5 right-5 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-md text-gray-500 hover:text-gray-900 hover:bg-white transition-all duration-200 shadow-lg shadow-black/10 hover:scale-110 hover:rotate-90 active:scale-95"
                                 aria-label="Fermer"
-                                whileHover={{ rotate: 90 }}
-                                whileTap={{ scale: 0.88 }}
-                                transition={{ duration: 0.2 }}
                             >
                                 <FiX className="w-5 h-5" strokeWidth={2.5} />
-                            </motion.button>
+                            </button>
 
                             {/* Left - Image */}
                             <div className="relative w-[45%] shrink-0 bg-linear-to-br from-amber-50 via-orange-50 to-yellow-50">
                                 {isLoading ? (
-                                    <div className="h-full flex flex-col items-center justify-center gap-3">
-                                        <div className="relative w-12 h-12">
-                                            <div className="absolute inset-0 border-[3px] border-orange-100 rounded-full" />
-                                            <div className="absolute inset-0 border-[3px] border-transparent border-t-orange-500 rounded-full animate-spin" />
-                                        </div>
-                                        <span className="text-xs text-orange-400/80 font-medium tracking-wide">
-                                            Chargement...
-                                        </span>
-                                    </div>
+                                    <div className="h-full w-full skeleton-block" />
                                 ) : menu?.imageUrl ? (
                                     <>
                                         {!imageLoaded && (
@@ -492,28 +477,37 @@ function DetailsMenu() {
                             {/* Right - Content */}
                             <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
                                 <div className="p-10 pb-8">
+                                    {isLoading ? (
+                                        <div className="space-y-4">
+                                            <div className="skeleton-block h-8 w-2/3" />
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="skeleton-block h-9 w-28 rounded-full" />
+                                                <div className="skeleton-block h-9 w-24 rounded-full" />
+                                            </div>
+                                            <div className="skeleton-block h-4 w-full" />
+                                            <div className="skeleton-block h-20 w-full" />
+                                        </div>
+                                    ) : (
+                                        <>
                                     {/* Title */}
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.1, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                                    <div
+                                        className="animate-fade-up"
+                                        style={{ animationDelay: "0.1s" }}
                                     >
                                         <h1 className="text-[2rem] font-extrabold text-gray-900 leading-[1.15] tracking-tight">
                                             {menu?.name}
                                         </h1>
                                         {renderMetaChips()}
-                                    </motion.div>
+                                    </div>
 
                                     {/* Divider */}
                                     <div className="h-px bg-gray-100 my-6" />
 
                                     {/* Description */}
                                     {menu?.description && (
-                                        <motion.div
-                                            className="mb-6"
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.2, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                                        <div
+                                            className="mb-6 animate-fade-up"
+                                            style={{ animationDelay: "0.2s" }}
                                         >
                                             <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-3">
                                                 À propos
@@ -523,33 +517,30 @@ function DetailsMenu() {
                                                     {menu.description}
                                                 </p>
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     )}
 
                                     {/* Quantity */}
                                     {renderQuantitySelector()}
+                                        </>
+                                    )}
 
                                     {/* Divider */}
                                     <div className="h-px bg-gray-100 my-6" />
 
                                     {/* Desktop CTA */}
-                                    <motion.div
-                                        className="flex items-center justify-between gap-4"
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.4, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                                    <div
+                                        className="flex items-center justify-between gap-4 animate-fade-up"
+                                        style={{ animationDelay: "0.4s" }}
                                     >
                                         {/* Prix */}
                                         <div className="flex flex-col">
                                             <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
                                                 Total
                                             </span>
-                                            <motion.div
+                                            <div
                                                 key={totalPrice}
-                                                className="flex items-baseline gap-1"
-                                                initial={{ y: 6, opacity: 0 }}
-                                                animate={{ y: 0, opacity: 1 }}
-                                                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                                                className="flex items-baseline gap-1 animate-price-rise"
                                             >
                                                 <span className="text-2xl font-extrabold text-gray-900 tabular-nums tracking-tight">
                                                     {totalPrice.toLocaleString("fr-FR")}
@@ -557,14 +548,13 @@ function DetailsMenu() {
                                                 <span className="text-sm font-bold text-gray-400">
                                                     FCFA
                                                 </span>
-                                            </motion.div>
+                                            </div>
                                         </div>
 
                                         {/* Bouton Ajouter */}
-                                        <motion.button
+                                        <button
                                             onClick={() => setShowSuggestion(true)}
                                             className="flex items-center justify-center gap-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-4 px-8 rounded-2xl transition-colors duration-200 active:scale-[0.98] shadow-lg shadow-orange-200/50 group"
-                                            whileTap={{ scale: 0.98 }}
                                         >
                                             <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center shrink-0">
                                                 <FiShoppingBag className="w-4.5 h-4.5 text-white transition-transform duration-200 group-hover:scale-110" />
@@ -572,26 +562,26 @@ function DetailsMenu() {
                                             <span className="text-[15px] font-semibold tracking-wide whitespace-nowrap">
                                                 Ajouter
                                             </span>
-                                        </motion.button>
-                                    </motion.div>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </motion.div>
-                    </motion.div>
+                        </div>
+                    </div>
                 </>
             )}
 
-            {showSuggestion && (
+            {(showSuggestion || suggestionClosing) && (
                 <ErrorBoundary>
-                    <div key="suggestion-modal" className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                        <div className="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+                    <div key="suggestion-modal" className={`fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-modal-fade-in ${suggestionClosing ? "animate-modal-fade-out" : ""}`}>
+                        <div className={`w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6 animate-modal-pop-in ${suggestionClosing ? "animate-modal-pop-out" : ""}`}>
                             {/* En-tête */}
                             <div className="text-center sm:text-left">
                                 <h2 className="text-xl font-bold text-gray-900">
                                     Personnalisez votre commande
                                 </h2>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    Ajoutez une note et choisissez la quantité pour{" "}
+                                    Ajoutez une note et choisissez la quantité pour{" "} <br />
                                     <span className="font-semibold">{menu?.name}</span>.
                                 </p>
                             </div>
@@ -699,7 +689,7 @@ function DetailsMenu() {
                             <div className="flex sm:flex-row gap-3">
                                 <Button
                                     type="button"
-                                    onClick={() => setShowSuggestion(false)}
+                                    onClick={closeSuggestion}
                                     className="py-3 px-4 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition flex-1"
                                 >
                                     Annuler

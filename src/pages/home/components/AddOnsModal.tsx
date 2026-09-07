@@ -236,7 +236,7 @@ function ListView(props: {
                             <FiCheck className="w-5 h-5" strokeWidth={2.5} />
                             Valider les suppléments
                             {totalCount > 0 && (
-                                <span className="min-w-[1.75rem] h-6 px-1.5 flex items-center justify-center rounded-full bg-white/25 text-sm font-bold">
+                                <span className="min-w-7 h-6 px-1.5 flex items-center justify-center rounded-full bg-white/25 text-sm font-bold">
                                     {totalCount}
                                 </span>
                             )}
@@ -329,7 +329,7 @@ function DetailView(props: {
                     <FiCheck className="w-5 h-5" strokeWidth={2.5} />
                     Valider
                     {qty > 0 && (
-                        <span className="min-w-[1.75rem] h-6 px-1.5 flex items-center justify-center rounded-full bg-white/25 text-sm font-bold">
+                        <span className="min-w-7 h-6 px-1.5 flex items-center justify-center rounded-full bg-white/25 text-sm font-bold">
                             {qty}
                         </span>
                     )}
@@ -351,7 +351,7 @@ interface AddOnsModalProps {
 /**
  * Rendu 100% conditionnel : le parent monte ce composant uniquement
  * quand il est ouvert (`{showAddOns && <AddOnsModal ... />}`).
- * Pas de portal, pas d'AnimatePresence → aucune manipulation DOM
+ * Pas de portal, pas de bibliothèque d'animation → aucune manipulation DOM
  * risquée à la fermeture (fini le NotFoundError de removeChild).
  */
 export default function AddOnsModal({
@@ -362,25 +362,31 @@ export default function AddOnsModal({
 }: AddOnsModalProps) {
     const [selection, setSelection] = useState<AddOnSelection[]>(initialSelection);
     const [detailAddon, setDetailAddon] = useState<AddOnMenu | null>(null);
+    const [isClosing, setIsClosing] = useState<boolean>(false);
 
     const handleValidate = () => {
         onValidate(selection);
-        onClose();
+        animateClose();
+    };
+
+    const animateClose = () => {
+        setIsClosing(true);
+        setTimeout(() => onClose(), 250);
     };
 
     return (
         <>
             {/* Fond assombri */}
             <div
-                className="fixed inset-0 z-[120] bg-black/60 animate-modal-fade-in"
-                onClick={onClose}
+                className={`fixed inset-0 z-120 bg-black/60 animate-modal-fade-in ${isClosing ? "animate-modal-fade-out" : ""}`}
+                onClick={animateClose}
             />
             {/* Panneau */}
-            <div className="fixed inset-0 z-[121] flex items-end justify-center sm:items-center sm:p-4 pointer-events-none">
+            <div className="fixed inset-0 z-121 flex items-end justify-center sm:items-center sm:p-4 pointer-events-none">
                 <div
                     role="dialog"
                     aria-modal="true"
-                    className="pointer-events-auto relative w-full sm:max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden rounded-t-[28px] sm:rounded-[28px] animate-modal-slide-up sm:animate-modal-pop-in"
+                    className={`pointer-events-auto relative w-full sm:max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden rounded-t-[28px] sm:rounded-[28px] ${isClosing ? "animate-modal-pop-out" : "animate-modal-slide-up sm:animate-modal-pop-in"}`}
                     style={{ maxHeight: "min(88vh, 760px)" }}
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -417,7 +423,7 @@ export default function AddOnsModal({
                                 }
                                 onClear={() => setSelection([])}
                                 onOpenDetail={(addon) => setDetailAddon(addon)}
-                                onClose={onClose}
+                                onClose={animateClose}
                                 onValidate={handleValidate}
                             />
                         </div>

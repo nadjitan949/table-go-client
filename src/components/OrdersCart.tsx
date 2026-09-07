@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Button from "../ui/Button";
 import { MdRestaurant } from "react-icons/md";
 import type { Order } from "../interfaces/order.types";
@@ -26,7 +26,7 @@ function OrdersCart() {
 
     // ---- États et refs ----
     const [count, setCount] = useState<number>(readOrderCount);
-    const [bounce, setBounce] = useState(false);
+    const [bounce, setBounce] = useState<boolean>(false);
     const prevCountRef = useRef<number>(readOrderCount());
 
     // Timer pour effacer le panier après inactivité
@@ -52,7 +52,7 @@ function OrdersCart() {
     // ---- Onboarding (inchangé) ----
     const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>(0);
     const constraintsRef = useRef<HTMLDivElement>(null);
-    const wasVisibleRef = useRef(false);
+    const wasVisibleRef = useRef<boolean>(false);
 
     // ---- Mise à jour du compteur ----
     const updateCount = useCallback(() => {
@@ -159,23 +159,21 @@ function OrdersCart() {
                         whileDrag={{ scale: 1.08, cursor: "grabbing" }}
                         onDragStart={() => setOnboardingStep(0)}
                     >
-                        <AnimatePresence mode="wait">
-                            {onboardingStep > 0 && (
-                                <motion.div
-                                    key={`bubble-${onboardingStep}`}
-                                    initial={{ opacity: 0, x: 15, scale: 0.9 }}
-                                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                                    exit={{ opacity: 0, x: 15, scale: 0.9 }}
-                                    transition={{ duration: 0.3, ease: "easeOut" }}
-                                    className="absolute right-full top-1/2 -translate-y-1/2 mr-4 pointer-events-none max-w-[calc(90vw-6rem)] sm:max-w-[320px]"
-                                >
-                                    <div className="relative bg-white text-gray-800 text-[13px] font-medium px-4 py-2.5 rounded-2xl shadow-xl shadow-black/10 border border-gray-100 whitespace-normal wrap-break-words w-max max-w-full">
-                                        {bubbleMessages[onboardingStep]}
-                                        <div className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45" />
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        {/* Bulle d'onboarding — rendu conditionnel simple (entrée seulement) */}
+                        {onboardingStep > 0 && (
+                            <motion.div
+                                key={`bubble-${onboardingStep}`}
+                                initial={{ opacity: 0, x: 15, scale: 0.9 }}
+                                animate={{ opacity: 1, x: 0, scale: 1 }}
+                                transition={{ duration: 0.3, ease: "easeOut" }}
+                                className="absolute right-full top-1/2 -translate-y-1/2 mr-4 pointer-events-none max-w-[calc(90vw-6rem)] sm:max-w-[320px]"
+                            >
+                                <div className="relative bg-white text-gray-800 text-[13px] font-medium px-4 py-2.5 rounded-2xl shadow-xl shadow-black/10 border border-gray-100 whitespace-normal wrap-break-words w-max max-w-full">
+                                    {bubbleMessages[onboardingStep]}
+                                    <div className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45" />
+                                </div>
+                            </motion.div>
+                        )}
 
                         <motion.div
                             className="w-15 h-15 bg-orange-500 shadow-xl rounded-full cursor-grab active:cursor-grabbing"
@@ -188,30 +186,28 @@ function OrdersCart() {
                                 className="w-full h-full flex items-center justify-center text-white relative"
                             >
                                 <MdRestaurant size={28} />
-                                <AnimatePresence>
-                                    {count > 0 && (
-                                        <motion.div
-                                            className="absolute -top-1 -right-1 min-w-6 h-6 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-md px-1"
-                                            initial={{ scale: 0, opacity: 0 }}
-                                            animate={{ scale: 1, opacity: 1 }}
-                                            exit={{ scale: 0, opacity: 0 }}
-                                            transition={{
-                                                type: "spring",
-                                                stiffness: 500,
-                                                damping: 25,
-                                            }}
+                                {/* Badge compteur — rendu conditionnel simple */}
+                                {count > 0 && (
+                                    <motion.div
+                                        className="absolute -top-1 -right-1 min-w-6 h-6 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-md px-1"
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        transition={{
+                                            type: "spring",
+                                            stiffness: 500,
+                                            damping: 25,
+                                        }}
+                                    >
+                                        <motion.span
+                                            key={count}
+                                            initial={{ y: -8, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            transition={{ duration: 0.2, ease: "easeOut" }}
                                         >
-                                            <motion.span
-                                                key={count}
-                                                initial={{ y: -8, opacity: 0 }}
-                                                animate={{ y: 0, opacity: 1 }}
-                                                transition={{ duration: 0.2, ease: "easeOut" }}
-                                            >
-                                                {count}
-                                            </motion.span>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                                            {count}
+                                        </motion.span>
+                                    </motion.div>
+                                )}
                             </Button>
                         </motion.div>
                     </motion.div>

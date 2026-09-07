@@ -24,3 +24,69 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ---------------------------------------------------------- */
+/* Animations CSS pour les modals (aucune dépendance à framer) */
+/* ---------------------------------------------------------- */
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modal-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes modal-pop-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes card-pop-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes check-pop {
+  0%   { transform: scale(0); }
+  100% { transform: scale(1); }
+}
+
+.animate-modal-fade-in {
+  animation: modal-fade-in 0.2s ease-out both;
+}
+.animate-modal-slide-up {
+  animation: modal-slide-up 0.4s cubic-bezier(0.32, 1.2, 0.6, 1) both;
+}
+.animate-modal-pop-in {
+  animation: modal-pop-in 0.28s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.animate-card-pop-in {
+  animation: card-pop-in 0.3s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.22s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.22s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+.animate-check-pop {
+  animation: check-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-fade-in,
+  .animate-modal-slide-up,
+  .animate-modal-pop-in,
+  .animate-card-pop-in,
+  .animate-slide-in-right,
+  .animate-slide-in-left,
+  .animate-check-pop {
+    animation-duration: 0.01ms;
+  }
+}

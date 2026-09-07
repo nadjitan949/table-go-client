@@ -13,28 +13,27 @@ import {
     FiEdit3,
     FiCoffee,
 } from "react-icons/fi";
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { MdRestaurant } from "react-icons/md";
 import { useNavigate, useParams } from "react-router-dom";
 import Button from "../../../ui/Button";
 import type { OrderItems } from "../../../interfaces/orderItems.types";
 import type { Order } from "../../../interfaces/order.types";
 import type { AddOnSelection } from "../../../interfaces/addon.types";
-import { addonsSubtotal } from "../../../utils/addons";
+import { addonsSubtotal, toOrderAddons } from "../../../utils/addons";
 import AddOnsModal from "./AddOnsModal";
 import ErrorBoundary from "../../../components/ErrorBoundary";
 
 function DetailsMenu() {
-    const { id, token } = useParams()
+    const { id, token } = useParams<{ id: string; token: string }>()
     const [menu, setMenu] = useState<MenuItem | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [quantity, setQuantity] = useState<number>(1);
-    const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState<boolean>(false);
     const [showSuggestion, setShowSuggestion] = useState<boolean>(false)
     const [note, setNote] = useState<string | "">("")
     const [addOnSelection, setAddOnSelection] = useState<AddOnSelection[]>([])
     const [showAddOns, setShowAddOns] = useState<boolean>(false)
-    const [addOnsOpenCount, setAddOnsOpenCount] = useState<number>(0)
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const { scrollY } = useScroll({ container: scrollRef });
@@ -45,7 +44,6 @@ function DetailsMenu() {
     const goBack = () => navigate(-1)
 
     const openAddOnsModal = () => {
-        setAddOnsOpenCount((count) => count + 1)
         setShowAddOns(true)
     }
 
@@ -98,7 +96,7 @@ function DetailsMenu() {
             const baseOrderItem: OrderItems = {
                 menuId: Number(menu?.id),
                 note: note,
-                addon: [],
+                addon: toOrderAddons(addOnSelection),
             };
 
             // Génération de N objets identiques (N = quantity)
@@ -281,7 +279,7 @@ function DetailsMenu() {
     );
 
     return (
-        <AnimatePresence>
+        <>
             {id && (
                 <>
                     {/* ======================== */}
@@ -291,7 +289,6 @@ function DetailsMenu() {
                         className="fixed inset-0 z-100 bg-black lg:hidden"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.25 }}
                     >
                         {/* Scrollable Content Area */}
@@ -381,25 +378,22 @@ function DetailsMenu() {
                                         layout
                                         transition={{ type: "spring", stiffness: 350, damping: 35 }}
                                     >
-                                        <AnimatePresence mode="popLayout">
-                                            <motion.div
-                                                key={totalPrice}
-                                                className="flex flex-col items-center"
-                                                initial={{ y: 6, opacity: 0 }}
-                                                animate={{ y: 0, opacity: 1 }}
-                                                exit={{ y: -6, opacity: 0 }}
-                                                transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                                            >
-                                                <div className="flex items-baseline gap-0.5">
-                                                    <span className="text-lg font-extrabold text-gray-900 tabular-nums tracking-tight">
-                                                        {totalPrice.toLocaleString("fr-FR")}
-                                                    </span>
-                                                    <span className="text-[10px] font-bold text-gray-400">
-                                                        FCFA
-                                                    </span>
-                                                </div>
-                                            </motion.div>
-                                        </AnimatePresence>
+                                        <motion.div
+                                            key={totalPrice}
+                                            className="flex flex-col items-center"
+                                            initial={{ y: 6, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                                        >
+                                            <div className="flex items-baseline gap-0.5">
+                                                <span className="text-lg font-extrabold text-gray-900 tabular-nums tracking-tight">
+                                                    {totalPrice.toLocaleString("fr-FR")}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-gray-400">
+                                                    FCFA
+                                                </span>
+                                            </div>
+                                        </motion.div>
                                     </motion.div>
 
                                     {/* Bouton Ajouter */}
@@ -429,7 +423,6 @@ function DetailsMenu() {
                         className="hidden lg:flex fixed bg-white inset-0 z-100 items-center justify-center"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.25 }}
                     >
                         {/* Backdrop */}
@@ -438,7 +431,6 @@ function DetailsMenu() {
                             onClick={goBack}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
                         />
 
                         {/* Modal */}
@@ -446,7 +438,6 @@ function DetailsMenu() {
                             className="relative w-full max-w-5xl max-h-[90vh] bg-white overflow-hidden flex"
                             initial={{ opacity: 0, y: 30, scale: 0.97 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 30, scale: 0.97 }}
                             transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -553,23 +544,20 @@ function DetailsMenu() {
                                             <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
                                                 Total
                                             </span>
-                                            <AnimatePresence mode="popLayout">
-                                                <motion.div
-                                                    key={totalPrice}
-                                                    className="flex items-baseline gap-1"
-                                                    initial={{ y: 6, opacity: 0 }}
-                                                    animate={{ y: 0, opacity: 1 }}
-                                                    exit={{ y: -6, opacity: 0 }}
-                                                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                                                >
-                                                    <span className="text-2xl font-extrabold text-gray-900 tabular-nums tracking-tight">
-                                                        {totalPrice.toLocaleString("fr-FR")}
-                                                    </span>
-                                                    <span className="text-sm font-bold text-gray-400">
-                                                        FCFA
-                                                    </span>
-                                                </motion.div>
-                                            </AnimatePresence>
+                                            <motion.div
+                                                key={totalPrice}
+                                                className="flex items-baseline gap-1"
+                                                initial={{ y: 6, opacity: 0 }}
+                                                animate={{ y: 0, opacity: 1 }}
+                                                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                                            >
+                                                <span className="text-2xl font-extrabold text-gray-900 tabular-nums tracking-tight">
+                                                    {totalPrice.toLocaleString("fr-FR")}
+                                                </span>
+                                                <span className="text-sm font-bold text-gray-400">
+                                                    FCFA
+                                                </span>
+                                            </motion.div>
                                         </div>
 
                                         {/* Bouton Ajouter */}
@@ -728,15 +716,15 @@ function DetailsMenu() {
                     </div>
                 </ErrorBoundary>
             )}
-            <AddOnsModal
-                key={addOnsOpenCount}
-                open={showAddOns}
-                addOns={menu?.AddOns ?? []}
-                initialSelection={addOnSelection}
-                onValidate={(selection) => setAddOnSelection(selection)}
-                onClose={() => setShowAddOns(false)}
-            />
-        </AnimatePresence >
+            {showAddOns && (
+                <AddOnsModal
+                    addOns={menu?.AddOns ?? []}
+                    initialSelection={addOnSelection}
+                    onValidate={(selection) => setAddOnSelection(selection)}
+                    onClose={() => setShowAddOns(false)}
+                />
+            )}
+        </>
     );
 }
 

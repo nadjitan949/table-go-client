@@ -1,4 +1,5 @@
 import type { AddOnMenu, AddOnSelection } from "../interfaces/addon.types";
+import type { OrderAddon } from "../interfaces/orderItems.types";
 
 export function formatPrice(price: string | number): string {
     return `${Math.round(Number(price)).toLocaleString("fr-FR")} FCFA`;
@@ -33,4 +34,11 @@ export function addonsSubtotal(selection: AddOnSelection[]): number {
         (sum, s) => sum + Number(s.addon.price) * s.quantity,
         0
     );
+}
+
+export function toOrderAddons(selection: AddOnSelection[]): OrderAddon[] {
+    return selection.map((s) => ({
+        addonId: s.addon.id,
+        quantity: s.quantity,
+    }));
 }

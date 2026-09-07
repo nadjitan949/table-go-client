@@ -10,7 +10,7 @@ import Button from "../../ui/Button"
 import type { OrderItems } from "../../interfaces/orderItems.types"
 import type { Order } from "../../interfaces/order.types"
 import type { AddOnSelection } from "../../interfaces/addon.types"
-import { addonsSubtotal } from "../../utils/addons"
+import { addonsSubtotal, toOrderAddons } from "../../utils/addons"
 import AddOnsModal from "./components/AddOnsModal"
 import ErrorBoundary from "../../components/ErrorBoundary"
 
@@ -30,7 +30,7 @@ function formatPrice(price: string): string {
 
 function MenuPage() {
     const { token } = useParams<{ token: string }>()
-    const [menuItems, setMenuItems] = useState<MenuItem[] | []>([])
+    const [menuItems, setMenuItems] = useState<MenuItem[]>([])
     const [table, setTable] = useState<Table | null>(null)
     const [loading, setLoading] = useState<boolean>(true)
     const [activeCategory, setActiveCategory] = useState<string>("all")
@@ -43,16 +43,14 @@ function MenuPage() {
     const [note, setNote] = useState<string | "">("")
     const [addOnSelection, setAddOnSelection] = useState<AddOnSelection[]>([])
     const [showAddOns, setShowAddOns] = useState<boolean>(false)
-    const [addOnsOpenCount, setAddOnsOpenCount] = useState<number>(0)
 
-    const [searchTerm, setSearchTerm] = useState("")
+    const [searchTerm, setSearchTerm] = useState<string>("")
     const [maxPrice, setMaxPrice] = useState<number>(0)
 
     const navigate = useNavigate()
     const detailMenu = (id: number) => navigate(`/menu/${token}/${id}`)
 
     const openAddOnsModal = () => {
-        setAddOnsOpenCount((count) => count + 1)
         setShowAddOns(true)
     }
 
@@ -128,7 +126,7 @@ function MenuPage() {
             const baseOrderItem: OrderItems = {
                 menuId: Number(selectedMenu.id),
                 note: note,
-                addon: [],
+                addon: toOrderAddons(addOnSelection),
             };
 
             // Génération de N objets identiques (N = quantity)
@@ -225,7 +223,7 @@ function MenuPage() {
                         <Button
                             onClick={() => setShowFilters(prev => !prev)}
                             className={`shrink-0 flex items-center justify-center gap-1.5 px-4 py-4 rounded-full text-sm font-medium transition-all duration-500 ease-in-out ${showFilters
-                                ? "bg-orange-500 text-white shadow-lg shadow-orange-200 scale-105"
+                                ? "bg-orange-500 text-white scale-105"
                                 : "bg-white/80 border border-orange-200 text-gray-700 hover:bg-white hover:scale-105"
                                 }`}
                         >
@@ -246,7 +244,7 @@ function MenuPage() {
                                 <Button
                                     onClick={() => setActiveCategory("all")}
                                     className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${activeCategory === "all"
-                                        ? "bg-orange-500 text-white shadow-md shadow-orange-200"
+                                        ? "bg-orange-500 text-white "
                                         : "bg-white/60 text-gray-600 hover:bg-white/80 border border-orange-200"
                                         }`}
                                 >
@@ -544,14 +542,14 @@ function MenuPage() {
                 </ErrorBoundary>
             )}
 
-            <AddOnsModal
-                key={addOnsOpenCount}
-                open={showAddOns}
-                addOns={selectedMenu?.AddOns ?? []}
-                initialSelection={addOnSelection}
-                onClose={() => setShowAddOns(false)}
-                onValidate={(selection) => setAddOnSelection(selection)}
-            />
+            {showAddOns && (
+                <AddOnsModal
+                    addOns={selectedMenu?.AddOns ?? []}
+                    initialSelection={addOnSelection}
+                    onClose={() => setShowAddOns(false)}
+                    onValidate={(selection) => setAddOnSelection(selection)}
+                />
+            )}
         </div>
     )
 }

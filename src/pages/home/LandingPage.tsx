@@ -21,10 +21,10 @@ function QrFinder({ posX, posY }: { posX: number; posY: number }) {
 }
 
 function LandingPage() {
-    const { token } = useParams()
+    const { token } = useParams<{ token: string }>()
     const navigate = useNavigate()
     const [table, setTable] = useState<Table | null>(null)
-    const [isLoaded, setIsLoaded] = useState(false)
+    const [isLoaded, setIsLoaded] = useState<boolean>(false)
 
     const goToMenu = () => navigate(`/menu/${token}`)
 

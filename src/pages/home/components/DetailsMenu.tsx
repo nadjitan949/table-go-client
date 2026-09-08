@@ -112,29 +112,35 @@ function DetailsMenu() {
     function handleAddOrder() {
         try {
             if (!token) return;
-            if (!menu?.id) return; // sécurité
+            if (!menu?.id) return;
 
-            // Création d'un objet de base avec quantité = 1 pour chaque unité
             const baseOrderItem: OrderItems = {
-                menuId: Number(menu?.id),
+                menuId: Number(menu.id),
                 note: note,
                 addon: toOrderAddons(addOnSelection),
             };
 
-            // Génération de N objets identiques (N = quantity)
-            const orders = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
+            const newItems = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
 
-            // Construction de l'objet Order
-            const order: Order = {
+            // Lecture de la commande existante (si elle existe déjà)
+            const existingOrderRaw = localStorage.getItem("Order");
+            const existingOrder: Order = existingOrderRaw
+                ? JSON.parse(existingOrderRaw)
+                : { tableToken: token, order: [] };
+
+            // Fusion des nouveaux items avec les anciens
+            const updatedOrder: Order = {
                 tableToken: token,
-                order: orders,
+                order: [...existingOrder.order, ...newItems],
             };
 
-            // Enregistrement dans localStorage (conversion en JSON)
-            localStorage.setItem("Order", JSON.stringify(order));
+            localStorage.setItem("Order", JSON.stringify(updatedOrder));
 
-            console.log("Commande enregistrée :", order);
-            closeSuggestion()
+            // Notifie OrdersCart pour qu'il se mette à jour immédiatement
+            window.dispatchEvent(new Event("orderUpdated"));
+
+            console.log("Commande enregistrée :", updatedOrder);
+            closeSuggestion();
         } catch (error) {
             console.log(error);
         }
@@ -329,33 +335,33 @@ function DetailsMenu() {
                                         </div>
                                     ) : (
                                         <>
-                                    <div
-                                        className="pt-2 pb-4 animate-fade-up"
-                                        style={{ animationDelay: "0.15s" }}
-                                    >
-                                        <h1 className="text-[1.7rem] font-extrabold text-gray-900 leading-[1.15] tracking-tight">
-                                            {menu?.name}
-                                        </h1>
-                                        {renderMetaChips()}
-                                    </div>
-
-                                    {menu?.description && (
-                                        <div
-                                            className="py-5 animate-fade-up"
-                                            style={{ animationDelay: "0.25s" }}
-                                        >
-                                            <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-2.5">
-                                                À propos
-                                            </h2>
-                                            <div className="max-h-40 overflow-y-auto pr-2 scrollbar-thin">
-                                                <p className="text-[0.95rem] text-gray-600 leading-[1.7] whitespace-pre-line">
-                                                    {menu.description}
-                                                </p>
+                                            <div
+                                                className="pt-2 pb-4 animate-fade-up"
+                                                style={{ animationDelay: "0.15s" }}
+                                            >
+                                                <h1 className="text-[1.7rem] font-extrabold text-gray-900 leading-[1.15] tracking-tight">
+                                                    {menu?.name}
+                                                </h1>
+                                                {renderMetaChips()}
                                             </div>
-                                        </div>
-                                    )}
 
-                                    {renderQuantitySelector()}
+                                            {menu?.description && (
+                                                <div
+                                                    className="py-5 animate-fade-up"
+                                                    style={{ animationDelay: "0.25s" }}
+                                                >
+                                                    <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-2.5">
+                                                        À propos
+                                                    </h2>
+                                                    <div className="max-h-40 overflow-y-auto pr-2 scrollbar-thin">
+                                                        <p className="text-[0.95rem] text-gray-600 leading-[1.7] whitespace-pre-line">
+                                                            {menu.description}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {renderQuantitySelector()}
                                         </>
                                     )}
                                 </div>
@@ -489,39 +495,39 @@ function DetailsMenu() {
                                         </div>
                                     ) : (
                                         <>
-                                    {/* Title */}
-                                    <div
-                                        className="animate-fade-up"
-                                        style={{ animationDelay: "0.1s" }}
-                                    >
-                                        <h1 className="text-[2rem] font-extrabold text-gray-900 leading-[1.15] tracking-tight">
-                                            {menu?.name}
-                                        </h1>
-                                        {renderMetaChips()}
-                                    </div>
-
-                                    {/* Divider */}
-                                    <div className="h-px bg-gray-100 my-6" />
-
-                                    {/* Description */}
-                                    {menu?.description && (
-                                        <div
-                                            className="mb-6 animate-fade-up"
-                                            style={{ animationDelay: "0.2s" }}
-                                        >
-                                            <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-3">
-                                                À propos
-                                            </h2>
-                                            <div className="max-h-48 overflow-y-auto pr-2 scrollbar-thin">
-                                                <p className="text-[0.95rem] text-gray-600 leading-[1.8] whitespace-pre-line">
-                                                    {menu.description}
-                                                </p>
+                                            {/* Title */}
+                                            <div
+                                                className="animate-fade-up"
+                                                style={{ animationDelay: "0.1s" }}
+                                            >
+                                                <h1 className="text-[2rem] font-extrabold text-gray-900 leading-[1.15] tracking-tight">
+                                                    {menu?.name}
+                                                </h1>
+                                                {renderMetaChips()}
                                             </div>
-                                        </div>
-                                    )}
 
-                                    {/* Quantity */}
-                                    {renderQuantitySelector()}
+                                            {/* Divider */}
+                                            <div className="h-px bg-gray-100 my-6" />
+
+                                            {/* Description */}
+                                            {menu?.description && (
+                                                <div
+                                                    className="mb-6 animate-fade-up"
+                                                    style={{ animationDelay: "0.2s" }}
+                                                >
+                                                    <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-3">
+                                                        À propos
+                                                    </h2>
+                                                    <div className="max-h-48 overflow-y-auto pr-2 scrollbar-thin">
+                                                        <p className="text-[0.95rem] text-gray-600 leading-[1.8] whitespace-pre-line">
+                                                            {menu.description}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Quantity */}
+                                            {renderQuantitySelector()}
                                         </>
                                     )}
 

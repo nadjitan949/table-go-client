@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback, type PointerEvent as ReactPoi
 import Button from "../ui/Button";
 import { MdRestaurant } from "react-icons/md";
 import type { Order } from "../interfaces/order.types";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type OnboardingStep = 0 | 1 | 2;
 
@@ -57,6 +58,20 @@ function OrdersCart() {
     const [dragPos, setDragPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const dragStartRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+    const navigate = useNavigate();
+    const location = useLocation(); // 2. Récupère l'URL courante
+
+    // 3. Extrait le token depuis le chemin de l'URL
+    // Ex: si l'URL est "/menu/MonToken123", ça récupère "MonToken123"
+    const pathSegments = location.pathname.split("/").filter(Boolean);
+    const token = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : "";
+
+    const orderPage = () => {
+        if (token) {
+            navigate(`/orders/${token}`);
+        }
+    };
 
     const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
         setOnboardingStep(0);
@@ -208,7 +223,7 @@ function OrdersCart() {
                         >
                             <Button
                                 type="button"
-                                onClick={() => alert("Page hein")}
+                                onClick={orderPage}
                                 className="w-full h-full flex items-center justify-center text-white relative"
                             >
                                 <MdRestaurant size={28} />

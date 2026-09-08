@@ -149,29 +149,35 @@ function MenuPage() {
     function handleAddOrder() {
         try {
             if (!token) return;
-            if (!selectedMenu?.id) return; // sécurité
+            if (!selectedMenu?.id) return;
 
-            // Création d'un objet de base avec quantité = 1 pour chaque unité
             const baseOrderItem: OrderItems = {
                 menuId: Number(selectedMenu.id),
                 note: note,
                 addon: toOrderAddons(addOnSelection),
             };
 
-            // Génération de N objets identiques (N = quantity)
-            const orders = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
+            const newItems = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
 
-            // Construction de l'objet Order
-            const order: Order = {
+            // Lecture de la commande existante (si elle existe déjà)
+            const existingOrderRaw = localStorage.getItem("Order");
+            const existingOrder: Order = existingOrderRaw
+                ? JSON.parse(existingOrderRaw)
+                : { tableToken: token, order: [] };
+
+            // Fusion des nouveaux items avec les anciens
+            const updatedOrder: Order = {
                 tableToken: token,
-                order: orders,
+                order: [...existingOrder.order, ...newItems],
             };
 
-            // Enregistrement dans localStorage (conversion en JSON)
-            localStorage.setItem("Order", JSON.stringify(order));
+            localStorage.setItem("Order", JSON.stringify(updatedOrder));
 
-            console.log("Commande enregistrée :", order);
-            closeSuggestion()
+            // Notifie OrdersCart pour qu'il se mette à jour immédiatement
+            window.dispatchEvent(new Event("orderUpdated"));
+
+            console.log("Commande enregistrée :", updatedOrder);
+            closeSuggestion();
         } catch (error) {
             console.log(error);
         }
@@ -329,90 +335,90 @@ function MenuPage() {
                     </>
                 ) : (
                     <>
-                {filteredGroups.map(group => (
-                    <section key={group.category} className="mb-10 last:mb-0">
-                        <div className="mb-4 flex items-center gap-3">
-                            <h2 className=" text-xl sm:text-2xl font-semibold text-gray-900">
-                                {CATEGORY_LABELS[group.category]}
-                            </h2>
-                            <div className="h-px flex-1 bg-orange-300/60" />
-                        </div>
+                        {filteredGroups.map(group => (
+                            <section key={group.category} className="mb-10 last:mb-0">
+                                <div className="mb-4 flex items-center gap-3">
+                                    <h2 className=" text-xl sm:text-2xl font-semibold text-gray-900">
+                                        {CATEGORY_LABELS[group.category]}
+                                    </h2>
+                                    <div className="h-px flex-1 bg-orange-300/60" />
+                                </div>
 
-                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                            {group.items.map(item => (
-                                <article
-                                    onClick={() => {
-                                        detailMenu(item.id)
-                                    }}
-                                    key={item.id}
-                                    data-reveal
-                                    className="group relative aspect-square overflow-hidden rounded-3xl border border-orange-100 bg-orange-50 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-orange-100/50 hover:-translate-y-0.5 reveal-item"
-                                >
-                                    {/* Image de fond couvrant tout le carré */}
-                                    {item.imageUrl ? (
-                                        <img
-                                            src={item.imageUrl}
-                                            alt={item.name}
-                                            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                            loading="lazy"
-                                        />
-                                    ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center text-orange-400">
-                                            <FiCoffee className="w-10 h-10" />
-                                        </div>
-                                    )}
-
-                                    {/* Dégradé noir transparent du bas vers le haut */}
-                                    <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
-
-                                    {/* Contenu superposé en bas */}
-                                    <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex items-end justify-between gap-2">
-                                        {/* Nom + temps de préparation (bas gauche) */}
-                                        <div className="flex flex-col min-w-0">
-                                            <h3 className="text-sm sm:text-base font-semibold text-white line-clamp-2 drop-shadow-md">
-                                                {item.name}
-                                            </h3>
-                                            <h3 className="text-[10px] sm:text-base font-bold text-white line-clamp-2 drop-shadow-md">
-                                                {item.price} FCFA
-                                            </h3>
-                                            {item.estimatedPrepTime && (
-                                                <span className="mt-1 flex items-center gap-1 text-[11px] sm:text-xs text-white/90 font-medium">
-                                                    <FiClock className="w-3.5 h-3.5" />
-                                                    {item.estimatedPrepTime} min
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Bouton rond "+" (bas droite) */}
-                                        <Button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                fetcheSelectedMenu(item.id)
-                                                setShowSuggestion(true)
+                                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                                    {group.items.map(item => (
+                                        <article
+                                            onClick={() => {
+                                                detailMenu(item.id)
                                             }}
-                                            className="shrink-0 flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-orange-500 text-white shadow-lg shadow-black/20 hover:bg-orange-700 active:scale-95 transition-all duration-300"
-                                            aria-label={`Ajouter ${item.name}`}
+                                            key={item.id}
+                                            data-reveal
+                                            className="group relative aspect-square overflow-hidden rounded-3xl border border-orange-100 bg-orange-50 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-orange-100/50 hover:-translate-y-0.5 reveal-item"
                                         >
-                                            <FiPlus className="w-5 h-5" />
-                                        </Button>
-                                    </div>
-                                </article>
-                            ))}
-                        </div>
-                    </section>
-                ))}
+                                            {/* Image de fond couvrant tout le carré */}
+                                            {item.imageUrl ? (
+                                                <img
+                                                    src={item.imageUrl}
+                                                    alt={item.name}
+                                                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center text-orange-400">
+                                                    <FiCoffee className="w-10 h-10" />
+                                                </div>
+                                            )}
 
-                {filteredGroups.length === 0 && (
-                    <div className="text-center py-20">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/70 border border-orange-100 flex items-center justify-center text-orange-400">
-                            <FiSearch className="w-8 h-8" />
-                        </div>
-                        <p className="text-sm text-gray-600">
-                            Aucun plat ne correspond à vos critères.
-                        </p>
-                    </div>
-                )}
+                                            {/* Dégradé noir transparent du bas vers le haut */}
+                                            <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+
+                                            {/* Contenu superposé en bas */}
+                                            <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex items-end justify-between gap-2">
+                                                {/* Nom + temps de préparation (bas gauche) */}
+                                                <div className="flex flex-col min-w-0">
+                                                    <h3 className="text-sm sm:text-base font-semibold text-white line-clamp-2 drop-shadow-md">
+                                                        {item.name}
+                                                    </h3>
+                                                    <h3 className="text-[10px] sm:text-base font-bold text-white line-clamp-2 drop-shadow-md">
+                                                        {item.price} FCFA
+                                                    </h3>
+                                                    {item.estimatedPrepTime && (
+                                                        <span className="mt-1 flex items-center gap-1 text-[11px] sm:text-xs text-white/90 font-medium">
+                                                            <FiClock className="w-3.5 h-3.5" />
+                                                            {item.estimatedPrepTime} min
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Bouton rond "+" (bas droite) */}
+                                                <Button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        fetcheSelectedMenu(item.id)
+                                                        setShowSuggestion(true)
+                                                    }}
+                                                    className="shrink-0 flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-orange-500 text-white shadow-lg shadow-black/20 hover:bg-orange-700 active:scale-95 transition-all duration-300"
+                                                    aria-label={`Ajouter ${item.name}`}
+                                                >
+                                                    <FiPlus className="w-5 h-5" />
+                                                </Button>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            </section>
+                        ))}
+
+                        {filteredGroups.length === 0 && (
+                            <div className="text-center py-20">
+                                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/70 border border-orange-100 flex items-center justify-center text-orange-400">
+                                    <FiSearch className="w-8 h-8" />
+                                </div>
+                                <p className="text-sm text-gray-600">
+                                    Aucun plat ne correspond à vos critères.
+                                </p>
+                            </div>
+                        )}
                     </>
                 )}
             </main>

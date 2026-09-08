@@ -155,6 +155,7 @@ function MenuPage() {
                 menuId: Number(selectedMenu.id),
                 note: note,
                 addon: toOrderAddons(addOnSelection),
+                status: "pending"
             };
 
             const newItems = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
@@ -288,7 +289,7 @@ function MenuPage() {
                                 })}
                             </div>
 
-                            <div className="flex items-center gap-3 bg-white/50 rounded-2xl px-4 py-2 border border-orange-100">
+                            <div className="flex items-center gap-3 bg-white/50 rounded-2xl px-4 py-2">
                                 <FiSliders className="w-4 h-4 text-gray-500 shrink-0" />
                                 <div className="flex-1">
                                     <input
@@ -341,7 +342,6 @@ function MenuPage() {
                                     <h2 className=" text-xl sm:text-2xl font-semibold text-gray-900">
                                         {CATEGORY_LABELS[group.category]}
                                     </h2>
-                                    <div className="h-px flex-1 bg-orange-300/60" />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3 sm:gap-4">

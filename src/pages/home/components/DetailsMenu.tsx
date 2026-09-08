@@ -118,6 +118,7 @@ function DetailsMenu() {
                 menuId: Number(menu.id),
                 note: note,
                 addon: toOrderAddons(addOnSelection),
+                status: "pending"
             };
 
             const newItems = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));

@@ -29,11 +29,11 @@ interface AddOnInfo {
     image?: string | null
 }
 
-// Extension locale de Order : "locked" distingue le panier en cours de
-// composition (tout éditable) de la commande envoyée en cuisine (chaque
-// item a alors un vrai statut de suivi, et ne peut être annulé que si
-// status === "pending")
-type StoredOrder = Order & { locked?: boolean }
+type StoredOrderItem = OrderItems & { locked?: boolean }
+type StoredOrder = Omit<Order, "order"> & {
+    order: StoredOrderItem[]
+    locked?: boolean
+}
 
 interface OrderGroup {
     key: string
@@ -42,6 +42,8 @@ interface OrderGroup {
     addons: OrderAddon[]
     quantity: number
     status: OrderItems["status"]
+    itemNumber: number
+    locked: boolean
 }
 
 const ORDER_KEY = "Order"
@@ -73,54 +75,60 @@ function writeOrder(order: StoredOrder) {
     window.dispatchEvent(new Event("orderUpdated"))
 }
 
-function addonSignature(addons: OrderAddon[] = []): string {
-    return [...addons]
-        .sort((a, b) => a.addonId - b.addonId)
-        .map((a) => `${a.addonId}x${a.quantity}`)
-        .join(",")
+function getOrdinalLabel(num: number): string {
+    if (num === 1) return "1er"
+    return `${num}ème`
 }
 
-// Regroupe par plat + suppléments + statut : deux items identiques mais à
-// des statuts différents (ex: un nouveau plat ajouté pendant qu'un autre
-// est déjà en préparation) restent bien deux cartes distinctes
-function groupItems(items: OrderItems[]): OrderGroup[] {
-    const map = new Map<string, OrderGroup>()
+// Mettre les nouveaux plats non validés (unlocked) en premier
+function sortGroups(items: OrderGroup[]): OrderGroup[] {
+    return [...items].sort((a, b) => {
+        if (a.locked === b.locked) return 0
+        return a.locked ? 1 : -1
+    })
+}
 
-    items.forEach((item) => {
+function groupItems(items: StoredOrderItem[]): OrderGroup[] {
+    const counts = new Map<number, number>()
+
+    const formatted = items.map((item, idx) => {
         const addons = item.addon ?? []
-        const key = `${item.menuId}::${item.status}::${addonSignature(addons)}`
+        const currentCount = (counts.get(item.menuId) || 0) + 1
+        counts.set(item.menuId, currentCount)
 
-        const existing = map.get(key)
-        if (existing) {
-            existing.quantity += 1
-        } else {
-            map.set(key, {
-                key,
-                menuId: item.menuId,
-                note: item.note || "",
-                addons,
-                quantity: 1,
-                status: item.status,
-            })
+        return {
+            key: `item-${item.menuId}-${idx}-${Date.now()}-${Math.random()}`,
+            menuId: item.menuId,
+            note: item.note || "",
+            addons,
+            quantity: 1,
+            status: item.status,
+            itemNumber: currentCount,
+            locked: Boolean(item.locked),
         }
     })
 
-    return Array.from(map.values())
+    return sortGroups(formatted)
 }
 
-function ungroupItems(groups: OrderGroup[]): OrderItems[] {
-    const items: OrderItems[] = []
-    groups.forEach((group) => {
-        for (let i = 0; i < group.quantity; i++) {
-            items.push({
-                menuId: group.menuId,
-                note: group.note,
-                addon: group.addons,
-                status: group.status,
-            })
-        }
+function refreshOrdinalNumbers(groups: OrderGroup[]): OrderGroup[] {
+    const sorted = sortGroups(groups)
+    const counts = new Map<number, number>()
+    return sorted.map((g) => {
+        const count = (counts.get(g.menuId) || 0) + 1
+        counts.set(g.menuId, count)
+        return { ...g, itemNumber: count }
     })
-    return items
+}
+
+function ungroupItems(groups: OrderGroup[]): StoredOrderItem[] {
+    return groups.map((group) => ({
+        menuId: group.menuId,
+        note: group.note,
+        addon: group.addons,
+        status: group.status,
+        locked: group.locked,
+    }))
 }
 
 function formatPrice(value: number): string {
@@ -131,7 +139,6 @@ function OrderPage() {
     const { token } = useParams<{ token: string }>()
     const navigate = useNavigate()
 
-    const [locked, setLocked] = useState(false)
     const [groups, setGroups] = useState<OrderGroup[]>([])
     const [menuLookup, setMenuLookup] = useState<Record<number, MenuItem>>({})
     const [table, setTable] = useState<Table | null>(null)
@@ -165,8 +172,13 @@ function OrderPage() {
                 return
             }
 
-            setLocked(Boolean(stored.locked))
-            const builtGroups = groupItems(stored.order)
+            const isGlobalLocked = Boolean(stored.locked)
+            const builtGroups = groupItems(
+                stored.order.map((item) => ({
+                    ...item,
+                    locked: item.locked ?? isGlobalLocked,
+                }))
+            )
             setGroups(builtGroups)
 
             const uniqueMenuIds = Array.from(new Set(builtGroups.map((g) => g.menuId)))
@@ -192,12 +204,13 @@ function OrderPage() {
         load()
     }, [])
 
-    function persistGroups(nextGroups: OrderGroup[], nextLocked: boolean = locked) {
-        setGroups(nextGroups)
+    function persistGroups(nextGroups: OrderGroup[]) {
+        const updated = refreshOrdinalNumbers(nextGroups)
+        setGroups(updated)
         writeOrder({
             tableToken: token ?? "",
-            order: ungroupItems(nextGroups),
-            locked: nextLocked,
+            order: ungroupItems(updated),
+            locked: updated.every((g) => g.locked),
         })
     }
 
@@ -233,22 +246,37 @@ function OrderPage() {
     )
 
     const total = useMemo(
-        () => groups.reduce((sum, g) => sum + groupUnitPrice(g) * g.quantity, 0),
+        () => groups.reduce((sum, g) => sum + groupUnitPrice(g), 0),
         [groups, groupUnitPrice]
     )
 
+    const menuCounts = useMemo(() => {
+        const map = new Map<number, number>()
+        groups.forEach((g) => {
+            map.set(g.menuId, (map.get(g.menuId) || 0) + 1)
+        })
+        return map
+    }, [groups])
+
+    const hasLockedItems = useMemo(() => groups.some((g) => g.locked), [groups])
+    const hasUnlockedItems = useMemo(() => groups.some((g) => !g.locked), [groups])
+
     function handleIncrease(key: string) {
-        persistGroups(groups.map((g) => (g.key === key ? { ...g, quantity: g.quantity + 1 } : g)))
+        const target = groups.find((g) => g.key === key)
+        if (!target) return
+
+        const newItem: OrderGroup = {
+            ...target,
+            key: `item-${target.menuId}-${Date.now()}-${Math.random()}`,
+            status: "pending",
+            locked: false,
+        }
+
+        persistGroups([newItem, ...groups])
     }
 
     function handleDecrease(key: string) {
-        const group = groups.find((g) => g.key === key)
-        if (!group) return
-        if (group.quantity <= 1) {
-            handleRemove(key)
-            return
-        }
-        persistGroups(groups.map((g) => (g.key === key ? { ...g, quantity: g.quantity - 1 } : g)))
+        handleRemove(key)
     }
 
     function handleNoteChange(key: string, note: string) {
@@ -270,14 +298,12 @@ function OrderPage() {
     function handleValidate() {
         setValidating(true)
         setTimeout(() => {
-            persistGroups(groups, true)
-            setLocked(true)
+            const validated = groups.map((g) => ({ ...g, locked: true }))
+            persistGroups(validated)
             setValidating(false)
         }, 400)
     }
 
-    // Annulation d'une commande précise — seulement possible si elle est
-    // encore "pending" (pas encore prise en cuisine)
     function handleCancelOrder(key: string) {
         setCancelingKey(key)
         setTimeout(() => {
@@ -300,7 +326,7 @@ function OrderPage() {
     }
 
     const isEmpty = !loading && groups.length === 0
-    const trackedGroups = locked ? groups : []
+    const trackedGroups = groups.filter((g) => g.locked)
 
     return (
         <div className="min-h-screen bg-white text-gray-800 font-sans pb-32">
@@ -326,7 +352,7 @@ function OrderPage() {
                         </div>
                     </div>
 
-                    {locked && !isEmpty && (
+                    {hasLockedItems && !isEmpty && (
                         <button
                             onClick={openTracking}
                             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-orange-50 text-orange-600 text-xs font-semibold hover:bg-orange-100 active:scale-95 transition-all"
@@ -377,18 +403,35 @@ function OrderPage() {
                         const addons = resolveAddons(group)
                         const unitPrice = groupUnitPrice(group)
                         const isRemoving = removingKey === group.key || cancelingKey === group.key
-                        const canCancel = locked && group.status === "pending"
+                        const canCancel = group.locked && group.status === "pending"
+                        const isMultiple = (menuCounts.get(group.menuId) ?? 0) > 1
+                        const isNewAfterValidation = !group.locked && hasLockedItems
+
+                        // Style spécifique pour distinguer les nouveaux plats
+                        let cardStyle = "border-orange-100 bg-white"
+                        if (group.locked) {
+                            cardStyle = "border-gray-100 bg-gray-50/60"
+                        } else if (isNewAfterValidation) {
+                            cardStyle = "border-orange-200 bg-orange-50/70 shadow-sm"
+                        }
 
                         return (
                             <article
                                 key={group.key}
-                                className={`flex gap-3 p-3 rounded-3xl border transition-all duration-300 ease-in-out ${locked ? "border-gray-100 bg-gray-50/60" : "border-orange-100 bg-white"
-                                    } ${isRemoving
+                                className={`relative flex gap-3 p-3 rounded-3xl border transition-all duration-300 ease-in-out ${cardStyle} ${
+                                    isRemoving
                                         ? "opacity-0 -translate-x-3 scale-[0.98]"
                                         : "opacity-100 translate-x-0 animate-fade-up"
-                                    }`}
+                                }`}
                                 style={{ animationDelay: `${index * 0.06}s` }}
                             >
+                                {/* Petit rond orange au-dessus du plat non encore validé */}
+                                {isNewAfterValidation && (
+                                    <div className="absolute -top-1.5 -right-1.5 flex items-center justify-center z-10">
+                                        <span className="w-3.5 h-3.5 rounded-full bg-orange-500 ring-4 ring-white animate-pulse" />
+                                    </div>
+                                )}
+
                                 <div className="w-20 h-20 rounded-2xl overflow-hidden bg-orange-50 shrink-0">
                                     {menu?.imageUrl ? (
                                         <img src={menu.imageUrl} alt={menu.name} className="h-full w-full object-cover" />
@@ -401,16 +444,23 @@ function OrderPage() {
 
                                 <div className="flex-1 min-w-0 space-y-1.5">
                                     <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
+                                        <div className="min-w-0 flex items-center gap-2">
                                             <h3 className="text-sm font-semibold text-gray-900 truncate">
                                                 {menu?.name ?? "Plat"}
                                             </h3>
-                                            <span className="text-xs text-gray-400">
-                                                {formatPrice(unitPrice)} / unité
-                                            </span>
+                                            {isMultiple && (
+                                                <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                    {getOrdinalLabel(group.itemNumber)}
+                                                </span>
+                                            )}
+                                            {isNewAfterValidation && (
+                                                <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500 text-white">
+                                                    Nouveau
+                                                </span>
+                                            )}
                                         </div>
 
-                                        {!locked && (
+                                        {!group.locked && (
                                             <button
                                                 onClick={() => handleRemove(group.key)}
                                                 className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 active:scale-90 transition-all shrink-0"
@@ -427,14 +477,14 @@ function OrderPage() {
                                         </p>
                                     )}
 
-                                    {!locked ? (
+                                    {!group.locked ? (
                                         <textarea
                                             value={group.note}
                                             onChange={(e) => handleNoteChange(group.key, e.target.value)}
                                             onBlur={handleNoteBlur}
                                             placeholder="Ajouter une note..."
                                             rows={1}
-                                            className="w-full text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
+                                            className="w-full text-xs text-gray-600 bg-white/80 border border-orange-100 rounded-lg px-2.5 py-1.5 resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
                                         />
                                     ) : (
                                         group.note && (
@@ -443,36 +493,36 @@ function OrderPage() {
                                     )}
 
                                     <div className="flex items-center justify-between pt-0.5">
-                                        {!locked ? (
-                                            <div className="flex items-center gap-1.5 bg-gray-50 rounded-full p-1 border border-gray-100">
+                                        {!group.locked ? (
+                                            <div className="flex items-center gap-1.5 bg-white rounded-full p-1 border border-orange-100">
                                                 <button
                                                     onClick={() => handleDecrease(group.key)}
-                                                    className="w-7 h-7 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600 active:scale-90 transition-all"
-                                                    aria-label="Diminuer"
+                                                    className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-50 border border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600 active:scale-90 transition-all"
+                                                    aria-label="Supprimer cet exemplaire"
                                                 >
                                                     <FiMinus className="w-3.5 h-3.5" />
                                                 </button>
                                                 <span className="w-6 text-center text-sm font-semibold tabular-nums">
-                                                    {group.quantity}
+                                                    1
                                                 </span>
                                                 <button
                                                     onClick={() => handleIncrease(group.key)}
                                                     className="w-7 h-7 flex items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600 active:scale-90 transition-all"
-                                                    aria-label="Augmenter"
+                                                    aria-label="Ajouter un autre exemplaire"
                                                 >
                                                     <FiPlus className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
                                         ) : (
-                                            <span className="text-xs font-medium text-gray-500">× {group.quantity}</span>
+                                            <span className="text-xs font-medium text-gray-500">× 1</span>
                                         )}
 
-                                        <span key={group.quantity} className="text-sm font-bold text-orange-600 tabular-nums animate-price-rise">
-                                            {formatPrice(unitPrice * group.quantity)}
+                                        <span className="text-sm font-bold text-orange-600 tabular-nums animate-price-rise">
+                                            {formatPrice(unitPrice)}
                                         </span>
                                     </div>
 
-                                    {locked && (
+                                    {group.locked && (
                                         <div className="flex items-center justify-between pt-1.5">
                                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-500 bg-orange-50 px-2 py-1 rounded-full">
                                                 {STATUS_STEPS[statusIndex(group.status)]?.label}
@@ -495,13 +545,14 @@ function OrderPage() {
                     })}
             </main>
 
-            {!isEmpty && !loading && !locked && (
+            {/* Barre de validation affichée s'il reste des plats non validés */}
+            {!isEmpty && !loading && hasUnlockedItems && (
                 <div className="fixed bottom-0 left-0 right-0 z-30 animate-fade-up">
                     <div className="bg-white border-t border-orange-100 px-4 sm:px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
                         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
                             <div className="flex flex-col">
                                 <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                                    Total
+                                    Total commande
                                 </span>
                                 <div key={total} className="flex items-baseline gap-1 animate-price-rise">
                                     <span className="text-xl font-extrabold text-gray-900 tabular-nums">
@@ -521,7 +572,7 @@ function OrderPage() {
                                 ) : (
                                     <FiCheckCircle className="w-4.5 h-4.5" />
                                 )}
-                                Valider
+                                {hasLockedItems ? "Envoyer les nouveaux" : "Valider"}
                             </Button>
                         </div>
                     </div>
@@ -531,12 +582,14 @@ function OrderPage() {
             {/* Modal de suivi des commandes */}
             {(showTracking || trackingClosing) && (
                 <div
-                    className={`fixed inset-0 z-100 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-modal-fade-in ${trackingClosing ? "animate-modal-fade-out" : ""
-                        }`}
+                    className={`fixed inset-0 z-100 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-modal-fade-in ${
+                        trackingClosing ? "animate-modal-fade-out" : ""
+                    }`}
                 >
                     <div
-                        className={`w-full sm:max-w-md bg-white scrollbar-hidden rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto animate-modal-pop-in ${trackingClosing ? "animate-modal-pop-out" : ""
-                            }`}
+                        className={`w-full sm:max-w-md bg-white scrollbar-hidden rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto animate-modal-pop-in ${
+                            trackingClosing ? "animate-modal-pop-out" : ""
+                        }`}
                     >
                         <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-6 py-4 flex items-center justify-between">
                             <h2 className="text-lg font-bold text-gray-900">Suivi de vos commandes</h2>
@@ -559,6 +612,7 @@ function OrderPage() {
                             {trackedGroups.map((group) => {
                                 const menu = menuLookup[group.menuId]
                                 const currentIndex = statusIndex(group.status)
+                                const isMultiple = (menuCounts.get(group.menuId) ?? 0) > 1
 
                                 return (
                                     <div key={group.key}>
@@ -572,11 +626,15 @@ function OrderPage() {
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="min-w-0">
+                                            <div className="min-w-0 flex items-center gap-2">
                                                 <p className="text-sm font-semibold text-gray-900 truncate">
                                                     {menu?.name ?? "Plat"}
                                                 </p>
-                                                <p className="text-xs text-gray-400">× {group.quantity}</p>
+                                                {isMultiple && (
+                                                    <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                        {getOrdinalLabel(group.itemNumber)}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
@@ -590,12 +648,13 @@ function OrderPage() {
                                                     <div key={step.value} className="flex gap-3">
                                                         <div className="flex flex-col items-center">
                                                             <div
-                                                                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${isDone
-                                                                    ? "bg-orange-500 text-white"
-                                                                    : isCurrent
+                                                                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
+                                                                    isDone
+                                                                        ? "bg-orange-500 text-white"
+                                                                        : isCurrent
                                                                         ? "bg-orange-500 text-white ring-4 ring-orange-100"
                                                                         : "bg-gray-100 text-gray-300"
-                                                                    }`}
+                                                                }`}
                                                             >
                                                                 {isDone ? (
                                                                     <FiCheck className="w-3.5 h-3.5" />
@@ -605,16 +664,18 @@ function OrderPage() {
                                                             </div>
                                                             {!isLast && (
                                                                 <div
-                                                                    className={`w-0.5 flex-1 min-h-6 transition-colors duration-300 ${isDone ? "bg-orange-400" : "bg-gray-100"
-                                                                        }`}
+                                                                    className={`w-0.5 flex-1 min-h-6 transition-colors duration-300 ${
+                                                                        isDone ? "bg-orange-400" : "bg-gray-100"
+                                                                    }`}
                                                                 />
                                                             )}
                                                         </div>
 
                                                         <div className={`pb-5 ${isLast ? "pb-0" : ""}`}>
                                                             <p
-                                                                className={`text-sm font-semibold ${isDone || isCurrent ? "text-gray-900" : "text-gray-300"
-                                                                    }`}
+                                                                className={`text-sm font-semibold ${
+                                                                    isDone || isCurrent ? "text-gray-900" : "text-gray-300"
+                                                                }`}
                                                             >
                                                                 {step.label}
                                                             </p>

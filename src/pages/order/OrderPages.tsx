@@ -4,7 +4,8 @@ import api from "../../api/axios"
 import type { ApiResponse } from "../../interfaces/api.types"
 import type { MenuItem } from "../../interfaces/menu.types"
 import type { Table } from "../../interfaces/table.types"
-import type { Order } from "../../interfaces/order.types"
+import type { OrderAddon, OrderItems } from "../../interfaces/orderItems.types"
+import { readOrderById, readOrders, writeOrderById } from "../../utils/ordersStorage"
 import Button from "../../ui/Button"
 import {
     FiTrash2,
@@ -20,19 +21,12 @@ import {
     FiClock,
 } from "react-icons/fi"
 import { MdRestaurant } from "react-icons/md"
-import type { OrderAddon, OrderItems } from "../../interfaces/orderItems.types"
 
 interface AddOnInfo {
     id: number
     name: string
     price: number
     image?: string | null
-}
-
-type StoredOrderItem = OrderItems & { locked?: boolean }
-type StoredOrder = Omit<Order, "order"> & {
-    order: StoredOrderItem[]
-    locked?: boolean
 }
 
 interface OrderGroup {
@@ -46,8 +40,6 @@ interface OrderGroup {
     locked: boolean
 }
 
-const ORDER_KEY = "Order"
-
 const STATUS_STEPS: { value: OrderItems["status"]; label: string; note: string }[] = [
     { value: "pending", label: "En attente", note: "Votre commande a été transmise en cuisine." },
     { value: "is_cooking", label: "En préparation", note: "Un cuisinier prépare votre commande." },
@@ -60,27 +52,12 @@ function statusIndex(status: OrderItems["status"]): number {
     return STATUS_STEPS.findIndex((s) => s.value === status)
 }
 
-function readOrder(): StoredOrder | null {
-    try {
-        const raw = localStorage.getItem(ORDER_KEY)
-        if (!raw) return null
-        return JSON.parse(raw)
-    } catch {
-        return null
-    }
-}
-
-function writeOrder(order: StoredOrder) {
-    localStorage.setItem(ORDER_KEY, JSON.stringify(order))
-    window.dispatchEvent(new Event("orderUpdated"))
-}
-
 function getOrdinalLabel(num: number): string {
     if (num === 1) return "1er"
     return `${num}ème`
 }
 
-// Mettre les nouveaux plats non validés (unlocked) en premier
+// Mettre les plats validés en bas, les nouveaux en haut
 function sortGroups(items: OrderGroup[]): OrderGroup[] {
     return [...items].sort((a, b) => {
         if (a.locked === b.locked) return 0
@@ -88,7 +65,7 @@ function sortGroups(items: OrderGroup[]): OrderGroup[] {
     })
 }
 
-function groupItems(items: StoredOrderItem[]): OrderGroup[] {
+function groupItems(items: OrderItems[], locked: boolean): OrderGroup[] {
     const counts = new Map<number, number>()
 
     const formatted = items.map((item, idx) => {
@@ -104,7 +81,7 @@ function groupItems(items: StoredOrderItem[]): OrderGroup[] {
             quantity: 1,
             status: item.status,
             itemNumber: currentCount,
-            locked: Boolean(item.locked),
+            locked,
         }
     })
 
@@ -121,13 +98,12 @@ function refreshOrdinalNumbers(groups: OrderGroup[]): OrderGroup[] {
     })
 }
 
-function ungroupItems(groups: OrderGroup[]): StoredOrderItem[] {
+function ungroupItems(groups: OrderGroup[]): OrderItems[] {
     return groups.map((group) => ({
         menuId: group.menuId,
         note: group.note,
         addon: group.addons,
         status: group.status,
-        locked: group.locked,
     }))
 }
 
@@ -136,10 +112,11 @@ function formatPrice(value: number): string {
 }
 
 function OrderPage() {
-    const { token } = useParams<{ token: string }>()
+    const { token, orderId } = useParams<{ token: string; orderId: string }>()
     const navigate = useNavigate()
 
     const [groups, setGroups] = useState<OrderGroup[]>([])
+    const [isLocked, setIsLocked] = useState(false)
     const [menuLookup, setMenuLookup] = useState<Record<number, MenuItem>>({})
     const [table, setTable] = useState<Table | null>(null)
     const [loading, setLoading] = useState(true)
@@ -164,21 +141,17 @@ function OrderPage() {
     useEffect(() => {
         async function load() {
             setLoading(true)
-            const stored = readOrder()
+            const stored = readOrderById(orderId)
 
             if (!stored || stored.order.length === 0) {
                 setGroups([])
+                setIsLocked(false)
                 setLoading(false)
                 return
             }
 
-            const isGlobalLocked = Boolean(stored.locked)
-            const builtGroups = groupItems(
-                stored.order.map((item) => ({
-                    ...item,
-                    locked: item.locked ?? isGlobalLocked,
-                }))
-            )
+            const builtGroups = groupItems(stored.order, Boolean(stored.locked))
+            setIsLocked(Boolean(stored.locked))
             setGroups(builtGroups)
 
             const uniqueMenuIds = Array.from(new Set(builtGroups.map((g) => g.menuId)))
@@ -202,17 +175,27 @@ function OrderPage() {
         }
 
         load()
-    }, [])
+    }, [orderId])
 
-    function persistGroups(nextGroups: OrderGroup[]) {
+    function persistGroups(nextGroups: OrderGroup[], lockedOverride?: boolean) {
         const updated = refreshOrdinalNumbers(nextGroups)
         setGroups(updated)
-        writeOrder({
-            tableToken: token ?? "",
+        const current = readOrderById(orderId)
+        if (!current) return
+        writeOrderById({
+            ...current,
+            tableToken: token ?? current.tableToken,
+            locked: lockedOverride ?? isLocked,
             order: ungroupItems(updated),
-            locked: updated.every((g) => g.locked),
         })
     }
+
+    const orderNumber = useMemo(() => {
+        if (!orderId) return 0
+        const orders = readOrders()
+        const idx = orders.findIndex((o) => o.id === orderId)
+        return idx >= 0 ? idx + 1 : 0
+    }, [orderId])
 
     const resolveAddons = useCallback(
         (group: OrderGroup): AddOnInfo[] => {
@@ -258,8 +241,8 @@ function OrderPage() {
         return map
     }, [groups])
 
-    const hasLockedItems = useMemo(() => groups.some((g) => g.locked), [groups])
-    const hasUnlockedItems = useMemo(() => groups.some((g) => !g.locked), [groups])
+    const hasLockedItems = isLocked && groups.length > 0
+    const hasUnlockedItems = !isLocked && groups.length > 0
 
     function handleIncrease(key: string) {
         const target = groups.find((g) => g.key === key)
@@ -299,7 +282,8 @@ function OrderPage() {
         setValidating(true)
         setTimeout(() => {
             const validated = groups.map((g) => ({ ...g, locked: true }))
-            persistGroups(validated)
+            setIsLocked(true)
+            persistGroups(validated, true)
             setValidating(false)
         }, 400)
     }
@@ -335,15 +319,15 @@ function OrderPage() {
                 <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => navigate(-1)}
+                            onClick={() => navigate(`/orders/${token}`)}
                             className="w-10 h-10 flex items-center justify-center rounded-full bg-orange-50 text-orange-600 hover:bg-orange-100 active:scale-90 transition-all"
-                            aria-label="Retour"
+                            aria-label="Retour à mes commandes"
                         >
                             <FiArrowLeft className="w-5 h-5" />
                         </button>
                         <div>
                             <h1 className="text-lg sm:text-xl font-bold text-gray-900">
-                                Ma commande
+                                {orderNumber > 0 ? `Commande n° ${orderNumber}` : "Ma commande"}
                             </h1>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-600">
                                 <FiMapPin className="w-3 h-3" />
@@ -352,7 +336,7 @@ function OrderPage() {
                         </div>
                     </div>
 
-                    {hasLockedItems && !isEmpty && (
+                    {hasLockedItems && (
                         <button
                             onClick={openTracking}
                             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-orange-50 text-orange-600 text-xs font-semibold hover:bg-orange-100 active:scale-95 transition-all"
@@ -386,14 +370,22 @@ function OrderPage() {
                             <FiShoppingBag className="w-7 h-7" />
                         </div>
                         <p className="text-sm text-gray-600 mb-4">
-                            Votre commande est vide pour le moment.
+                            Cette commande est vide pour le moment.
                         </p>
-                        <Button
-                            onClick={() => navigate(`/menu/${token}`)}
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 active:scale-95 transition-all"
-                        >
-                            Voir le menu
-                        </Button>
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                            <Button
+                                onClick={() => navigate(`/menu/${token}`)}
+                                className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 active:scale-95 transition-all"
+                            >
+                                Voir le menu
+                            </Button>
+                            <Button
+                                onClick={() => navigate(`/orders/${token}`)}
+                                className="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-orange-100 text-orange-600 text-sm font-semibold hover:bg-orange-50 active:scale-95 transition-all"
+                            >
+                                Mes commandes
+                            </Button>
+                        </div>
                     </div>
                 )}
 
@@ -405,14 +397,11 @@ function OrderPage() {
                         const isRemoving = removingKey === group.key || cancelingKey === group.key
                         const canCancel = group.locked && group.status === "pending"
                         const isMultiple = (menuCounts.get(group.menuId) ?? 0) > 1
-                        const isNewAfterValidation = !group.locked && hasLockedItems
 
-                        // Style spécifique pour distinguer les nouveaux plats
+                        // Style spécifique pour distinguer les plats validés
                         let cardStyle = "border-orange-100 bg-white"
                         if (group.locked) {
                             cardStyle = "border-gray-100 bg-gray-50/60"
-                        } else if (isNewAfterValidation) {
-                            cardStyle = "border-orange-200 bg-orange-50/70 shadow-sm"
                         }
 
                         return (
@@ -425,13 +414,6 @@ function OrderPage() {
                                 }`}
                                 style={{ animationDelay: `${index * 0.06}s` }}
                             >
-                                {/* Petit rond orange au-dessus du plat non encore validé */}
-                                {isNewAfterValidation && (
-                                    <div className="absolute -top-1.5 -right-1.5 flex items-center justify-center z-10">
-                                        <span className="w-3.5 h-3.5 rounded-full bg-orange-500 ring-4 ring-white animate-pulse" />
-                                    </div>
-                                )}
-
                                 <div className="w-20 h-20 rounded-2xl overflow-hidden bg-orange-50 shrink-0">
                                     {menu?.imageUrl ? (
                                         <img src={menu.imageUrl} alt={menu.name} className="h-full w-full object-cover" />
@@ -451,11 +433,6 @@ function OrderPage() {
                                             {isMultiple && (
                                                 <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
                                                     {getOrdinalLabel(group.itemNumber)}
-                                                </span>
-                                            )}
-                                            {isNewAfterValidation && (
-                                                <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500 text-white">
-                                                    Nouveau
                                                 </span>
                                             )}
                                         </div>
@@ -483,7 +460,6 @@ function OrderPage() {
                                             onChange={(e) => handleNoteChange(group.key, e.target.value)}
                                             onBlur={handleNoteBlur}
                                             placeholder="Ajouter une note..."
-                                            rows={1}
                                             className="w-full text-xs text-gray-600 bg-white/80 border border-orange-100 rounded-lg px-2.5 py-1.5 resize-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 outline-none transition"
                                         />
                                     ) : (
@@ -545,7 +521,7 @@ function OrderPage() {
                     })}
             </main>
 
-            {/* Barre de validation affichée s'il reste des plats non validés */}
+            {/* Barre de validation affichée si la commande n'est pas encore envoyée */}
             {!isEmpty && !loading && hasUnlockedItems && (
                 <div className="fixed bottom-0 left-0 right-0 z-30 animate-fade-up">
                     <div className="bg-white border-t border-orange-100 px-4 sm:px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
@@ -572,7 +548,7 @@ function OrderPage() {
                                 ) : (
                                     <FiCheckCircle className="w-4.5 h-4.5" />
                                 )}
-                                {hasLockedItems ? "Envoyer les nouveaux" : "Valider"}
+                                Valider la commande
                             </Button>
                         </div>
                     </div>

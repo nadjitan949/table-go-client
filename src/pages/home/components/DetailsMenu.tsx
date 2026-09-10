@@ -17,8 +17,8 @@ import { MdRestaurant } from "react-icons/md";
 import { useNavigate, useParams } from "react-router-dom";
 import Button from "../../../ui/Button";
 import type { OrderItems } from "../../../interfaces/orderItems.types";
-import type { Order } from "../../../interfaces/order.types";
 import type { AddOnSelection } from "../../../interfaces/addon.types";
+import { createOrderId, findActiveOrder, readOrders, writeOrders } from "../../../utils/ordersStorage";
 import { addonsSubtotal, toOrderAddons } from "../../../utils/addons";
 import AddOnsModal from "./AddOnsModal";
 import ErrorBoundary from "../../../components/ErrorBoundary";
@@ -123,24 +123,33 @@ function DetailsMenu() {
 
             const newItems = Array.from({ length: quantity }, () => ({ ...baseOrderItem }));
 
-            // Lecture de la commande existante (si elle existe déjà)
-            const existingOrderRaw = localStorage.getItem("Order");
-            const existingOrder: Order = existingOrderRaw
-                ? JSON.parse(existingOrderRaw)
-                : { tableToken: token, order: [] };
+            // Lecture des commandes existantes
+            const orders = readOrders();
 
-            // Fusion des nouveaux items avec les anciens
-            const updatedOrder: Order = {
-                tableToken: token,
-                order: [...existingOrder.order, ...newItems],
-            };
+            // S'il existe une commande en cours (brouillon) pour cette table, on ajoute dedans.
+            // Sinon on crée une nouvelle commande.
+            const activeOrder = findActiveOrder(orders, token);
 
-            localStorage.setItem("Order", JSON.stringify(updatedOrder));
+            const updatedOrders = activeOrder
+                ? orders.map((o) =>
+                      o.id === activeOrder.id
+                          ? { ...o, order: [...o.order, ...newItems] }
+                          : o
+                  )
+                : [
+                      ...orders,
+                      {
+                          id: createOrderId(),
+                          tableToken: token,
+                          order: [...newItems],
+                          locked: false,
+                          createdAt: Date.now(),
+                      },
+                  ];
 
-            // Notifie OrdersCart pour qu'il se mette à jour immédiatement
-            window.dispatchEvent(new Event("orderUpdated"));
+            writeOrders(updatedOrders);
 
-            console.log("Commande enregistrée :", updatedOrder);
+            console.log("Commande enregistrée :", updatedOrders);
             closeSuggestion();
         } catch (error) {
             console.log(error);

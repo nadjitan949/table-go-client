@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import Button from "../ui/Button";
 import { MdRestaurant } from "react-icons/md";
-import type { Order } from "../interfaces/order.types";
+import { readOrders } from "../utils/ordersStorage";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type OnboardingStep = 0 | 1 | 2;
@@ -14,10 +14,7 @@ function OrdersCart() {
     // ---- Lecture du nombre de commandes ----
     const readOrderCount = useCallback((): number => {
         try {
-            const orderData = localStorage.getItem(ORDER_STORAGE_KEY);
-            if (!orderData) return 0;
-            const parsed: Order = JSON.parse(orderData);
-            return parsed.order.length;
+            return readOrders().reduce((sum, order) => sum + (order.order?.length ?? 0), 0);
         } catch (error) {
             console.log(error);
             return 0;
@@ -63,9 +60,12 @@ function OrdersCart() {
     const location = useLocation(); // 2. Récupère l'URL courante
 
     // 3. Extrait le token depuis le chemin de l'URL
-    // Ex: si l'URL est "/menu/MonToken123", ça récupère "MonToken123"
+    // Ex: "/menu/MonToken123" -> "MonToken123", "/orders/MonToken123/xxxx" -> "MonToken123"
     const pathSegments = location.pathname.split("/").filter(Boolean);
-    const token = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : "";
+    const token =
+        pathSegments[0] === "menu" || pathSegments[0] === "orders"
+            ? pathSegments[1] ?? ""
+            : pathSegments[0] ?? "";
 
     const orderPage = () => {
         if (token) {
